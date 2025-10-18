@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 
 // Simple logo component for the navbar
 const Logo = (props: React.SVGAttributes<SVGElement>) => {
@@ -218,21 +219,21 @@ export interface Navbar05Props extends React.HTMLAttributes<HTMLElement> {
 
 // Default navigation links
 const defaultNavigationLinks: Navbar05NavItem[] = [
-  { href: '#', label: 'Home' },
-  { href: '#', label: 'Features' },
-  { href: '#', label: 'Pricing' },
-  { href: '#', label: 'About' },
+  { href: '#', label: 'Beranda' },
+  { href: '#', label: 'Log Book' },
+  { href: '#', label: 'Kalender' },
+  { href: '#', label: 'Pengaturan' },
 ];
 
 export const Navbar05 = React.forwardRef<HTMLElement, Navbar05Props>(
   (
     {
       className,
-      logo = <Logo />,
+      logo = <Logo />, 
       logoHref = '#',
       navigationLinks = defaultNavigationLinks,
-      userName = 'John Doe',
-      userEmail = 'john@example.com',
+      userName = '',
+      userEmail = '',
       userAvatar,
       notificationCount = 3,
       onNavItemClick,
@@ -245,6 +246,9 @@ export const Navbar05 = React.forwardRef<HTMLElement, Navbar05Props>(
   ) => {
     const [isMobile, setIsMobile] = useState(false);
     const containerRef = useRef<HTMLElement>(null);
+
+    // Get auth context
+    const { signOut, user } = useAuth();
 
     useEffect(() => {
       const checkWidth = () => {
@@ -334,7 +338,7 @@ export const Navbar05 = React.forwardRef<HTMLElement, Navbar05Props>(
                 <div className="text-2xl">
                   {logo}
                 </div>
-                <span className="hidden font-bold text-xl sm:inline-block">shadcn.io</span>
+                <span className="hidden font-bold text-xl sm:inline-block">BerauCoal</span>
               </a>
               {/* Navigation menu */}
               {!isMobile && (
@@ -371,11 +375,23 @@ export const Navbar05 = React.forwardRef<HTMLElement, Navbar05Props>(
               />
             </div>
             {/* User menu */}
-            <UserMenu 
-              userName={userName}
-              userEmail={userEmail}
-              userAvatar={userAvatar}
-              onItemClick={onUserItemClick}
+            <UserMenu
+              userName={
+                user?.user_metadata?.full_name || user?.email || userName
+              }
+              userEmail={user?.email || userEmail}
+              userAvatar={
+                user?.user_metadata?.avatar_url || user?.user_metadata?.picture || userAvatar
+              }
+              onItemClick={(item) => {
+                if (item === 'logout') {
+                  // call signOut from auth context
+                  signOut();
+                }
+
+                // forward other actions
+                if (onUserItemClick) onUserItemClick(item);
+              }}
             />
           </div>
         </div>
