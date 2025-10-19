@@ -46,25 +46,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signInWithUsername = async (username: string, password: string): Promise<Session | null> => {
-    // lookup email for username
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('username', username)
-      .single();
+  // Step 1: Look up the user's email based on username
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('username', username)
+    .single()
 
-    if (error || !profile || !profile.email) throw new Error('User not found');
+  if (profileError) {
+    console.error('Profile lookup error:', profileError)
+    throw new Error('User not found')
+  }
 
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: profile.email,
-      password,
-    });
+  if (!profile?.email) {
+    throw new Error('Email not found for this username')
+  }
 
-    if (authError) throw authError;
-    // supabase client will trigger onAuthStateChange and update user
-    // data contains session and user information
-    return (data.session as Session) ?? null;
-  };
+  // Step 2: Sign in using the email and password
+  const { data, error: authError } = await supabase.auth.signInWithPassword({
+    email: profile.email,
+    password,
+  })
+
+  if (authError) {
+    console.error('Auth error:', authError)
+    throw new Error(authError.message)
+  }
+
+  // Step 3: Return session
+  return data.session ?? null
+}
 
   const signOut = async () => {
     try {
