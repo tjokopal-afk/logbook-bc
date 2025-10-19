@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/supabase';
-import type { User } from '@supabase/supabase-js';
+import type { User, Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
   signInWithGithub: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  // returns Supabase session data on success
+  signInWithUsername: (username: string, password: string) => Promise<Session | null>;
   signOut: () => Promise<void>;
 }
 
@@ -43,6 +45,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await supabase.auth.signInWithOAuth({ provider: 'google' });
   };
 
+  const signInWithUsername = async (username: string, password: string): Promise<Session | null> => {
+    // lookup email for username
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('username', username)
+      .single();
+
+    if (error || !profile || !profile.email) throw new Error('User not found');
+
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: profile.email,
+      password,
+    });
+
+    if (authError) throw authError;
+    // supabase client will trigger onAuthStateChange and update user
+    // data contains session and user information
+    return (data.session as Session) ?? null;
+  };
+
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
@@ -71,7 +94,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, signInWithGithub, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, signInWithGithub, signInWithGoogle, signInWithUsername, signOut }}>
       {children}
     </AuthContext.Provider>
   );

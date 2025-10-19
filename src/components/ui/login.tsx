@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/context/AuthContext"
+import { useState } from 'react'
+import { useNavigate } from 'react-router'
 
 
 export function LoginForm({
@@ -18,12 +20,32 @@ export function LoginForm({
 }: React.ComponentProps<"div">) {
     
   const { signInWithGoogle } = useAuth();
+  const { signInWithUsername } = useAuth();
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
-          <form className="p-6 md:p-8">
+          <form className="p-6 md:p-8" onSubmit={async (e) => {
+            e.preventDefault();
+            setError(null);
+            const username = (e.currentTarget as HTMLFormElement).querySelector('#email') as HTMLInputElement
+            const password = (e.currentTarget as HTMLFormElement).querySelector('#password') as HTMLInputElement
+            if (!username?.value || !password?.value) return setError('Username and password are required')
+            setLoading(true)
+            try {
+              await signInWithUsername(username.value, password.value)
+              navigate('/home')
+            } catch (err: unknown) {
+              const message = err && typeof err === 'object' && 'message' in err ? (err as { message?: string }).message ?? String(err) : String(err)
+              setError(message || 'Login failed')
+            } finally {
+              setLoading(false)
+            }
+          }}>
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
                 <h1 className="text-4xl font-bold">Selamat Datang</h1>
@@ -53,8 +75,9 @@ export function LoginForm({
                 <Input id="password" type="password" required />
               </Field>
               <Field>
-                <Button type="submit">Login</Button>
+                <Button type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Login'}</Button>
               </Field>
+              {error && <p className='text-sm text-destructive'>{error}</p>}
               <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
                 Or continue with
               </FieldSeparator>

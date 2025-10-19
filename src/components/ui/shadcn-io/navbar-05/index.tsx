@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
+import { useNavigate } from 'react-router'
 
 // Simple logo component for the navbar
 const Logo = (props: React.SVGAttributes<SVGElement>) => {
@@ -219,10 +220,12 @@ export interface Navbar05Props extends React.HTMLAttributes<HTMLElement> {
 
 // Default navigation links
 const defaultNavigationLinks: Navbar05NavItem[] = [
-  { href: '#', label: 'Beranda' },
-  { href: '#', label: 'Log Book' },
-  { href: '#', label: 'Kalender' },
-  { href: '#', label: 'Pengaturan' },
+  { href: '/home', label: 'Beranda' },
+  { href: '/logbook', label: 'Log Book' },
+  { href: '/projects', label: 'Projects' },
+  { href: '/tasks', label: 'Tasks' },
+  { href: '/reviews', label: 'Reviews' },
+  { href: '/profile', label: 'Profile' },
 ];
 
 export const Navbar05 = React.forwardRef<HTMLElement, Navbar05Props>(
@@ -247,8 +250,9 @@ export const Navbar05 = React.forwardRef<HTMLElement, Navbar05Props>(
     const [isMobile, setIsMobile] = useState(false);
     const containerRef = useRef<HTMLElement>(null);
 
-    // Get auth context
-    const { signOut, user } = useAuth();
+  // Get auth context
+  const navigate = useNavigate()
+  const { signOut, user } = useAuth();
 
     useEffect(() => {
       const checkWidth = () => {
@@ -352,7 +356,7 @@ export const Navbar05 = React.forwardRef<HTMLElement, Navbar05Props>(
                             e.preventDefault();
                             if (onNavItemClick && link.href) onNavItemClick(link.href);
                           }}
-                          className="text-muted-foreground hover:text-primary py-1.5 font-medium transition-colors cursor-pointer group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50"
+                          className="text-muted-foreground hover:text-primary font-medium transition-colors cursor-pointer group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50"
                         >
                           {link.label}
                         </NavigationMenuLink>
@@ -385,9 +389,11 @@ export const Navbar05 = React.forwardRef<HTMLElement, Navbar05Props>(
               }
               onItemClick={(item) => {
                 if (item === 'logout') {
-                  // call signOut from auth context
                   signOut();
+                  navigate('/');
                 }
+
+                if (item === 'profile') navigate('/profile')
 
                 // forward other actions
                 if (onUserItemClick) onUserItemClick(item);
