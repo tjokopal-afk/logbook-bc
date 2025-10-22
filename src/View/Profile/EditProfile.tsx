@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import * as api from '@/lib/api_clean'
+import * as api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, FieldLabel } from '@/components/ui/field'
