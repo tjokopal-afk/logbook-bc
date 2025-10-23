@@ -7,12 +7,23 @@ export default {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			sans: ['Franklin Gothic', 'Franklin Gothic Book', 'Arial', 'sans-serif'],
+  			'franklin': ['Franklin Gothic', 'Franklin Gothic Book', 'Arial', 'sans-serif'],
+  			'franklin-black': ['Franklin Gothic Black', 'Franklin Gothic Demi', 'Arial Black', 'sans-serif'],
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		colors: {
+  			brand: {
+  				black: '#1D1D1B',
+  				green: '#80BA27',
+  				'green-dark': '#6A9C1F',
+  				'green-light': '#99D52A',
+  			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

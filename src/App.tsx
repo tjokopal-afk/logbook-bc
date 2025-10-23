@@ -1,50 +1,57 @@
+// =========================================
+// APP ROOT - Flat-Able Style Routing
+// =========================================
+
 import { Route, Routes, useLocation, useNavigate } from "react-router";
 import { useEffect } from "react";
-import Home from "./View/Home";
+import HomePage from "./pages/HomePage";
 import LoginPage from "./View/Login/page";
-import { Navbar05 } from '@/components/ui/shadcn-io/navbar-05';
+import DashboardPage from "./pages/DashboardPage";
+import DataManagementPage from "./pages/DataManagementPage";
+import SettingsPage from "./pages/SettingsPage";
+import ProfilePage from "./pages/ProfilePage";
 import { useAuth } from '@/context/AuthContext';
-import ProtectedRoute from '@/components/ProtectedRoute'
-import ProfilePage from './View/Profile/ProfilePage'
-import EditProfile from './View/Profile/EditProfile'
-
-// Minimal placeholder pages for other features (to be expanded)
-const Projects = () => <div className='p-6'>Projects list (TODO)</div>
-const Tasks = () => <div className='p-6'>Tasks (TODO)</div>
-const Logbook = () => <div className='p-6'>Logbook entries (TODO)</div>
-const Reviews = () => <div className='p-6'>Reviews & Ratings (TODO)</div>
-const AuditLog = () => <div className='p-6'>Audit Log (admin only) (TODO)</div>
+import { ToastProvider } from '@/components/ui/toast';
 
 function App() {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, loading } = useAuth();
 
+    // Optimized redirect logic - prevent loops
     useEffect(() => {
+        // Don't redirect while loading
+        if (loading) return;
+
+        // Redirect logged-in users from login page to home (dashboard)
         if (user && location.pathname === '/') {
             navigate('/home', { replace: true });
+            return;
         }
-        // If user is not logged in and is trying to access any protected route, send to login
+
+        // Redirect non-logged-in users to login page (except from login page)
         if (!user && location.pathname !== '/') {
             navigate('/', { replace: true });
         }
-    }, [user, location.pathname, navigate]);
+    }, [user, loading, location.pathname, navigate]);
+
+    // Show loading only during auth initialization (handled in AuthContext)
+    if (loading) {
+        return null; // AuthContext already shows loading spinner
+    }
 
     return (
-        <div>
-                {location.pathname !== '/' && <Navbar05 />}
-                <Routes>
-                    <Route path="/" element={<LoginPage />} />
-                    <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-                    <Route path="/profile/edit" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
-                    <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-                    <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
-                    <Route path="/logbook" element={<ProtectedRoute><Logbook /></ProtectedRoute>} />
-                    <Route path="/reviews" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
-                    <Route path="/audit" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
-                </Routes>
-            </div>
+        <ToastProvider>
+            {/* Routes - No navbar, each page has DashboardLayout with Sidebar */}
+            <Routes>
+                <Route path="/" element={<LoginPage />} />
+                <Route path="/home" element={<HomePage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/data-management" element={<DataManagementPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+            </Routes>
+        </ToastProvider>
     );
 }
 

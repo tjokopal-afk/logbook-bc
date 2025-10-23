@@ -4,6 +4,7 @@ import type { User, Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
+  loading: boolean;
   signInWithGithub: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   // returns Supabase session data on success
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -23,6 +25,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setUser(data.session?.user ?? null);
+      setLoading(false);
     });
 
     // Listen for auth state changes (SIGNED_IN / SIGNED_OUT)
@@ -46,36 +49,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signInWithUsername = async (username: string, password: string): Promise<Session | null> => {
-  // Step 1: Look up the user's email based on username
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('email')
-    .eq('username', username)
-    .single()
+    // Step 1: Look up the user's email based on username
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('username', username)
+      .single()
 
-  if (profileError) {
-    console.error('Profile lookup error:', profileError)
-    throw new Error('User not found')
+    if (profileError) {
+      console.error('Profile lookup error:', profileError)
+      throw new Error('User not found')
+    }
+
+    if (!profile?.email) {
+      throw new Error('Email not found for this username')
+    }
+
+    // Step 2: Sign in using the email and password
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: profile.email,
+      password,
+    })
+
+    if (authError) {
+      console.error('Auth error:', authError)
+      throw new Error(authError.message)
+    }
+
+    // Step 3: Return session
+    return data.session ?? null
   }
-
-  if (!profile?.email) {
-    throw new Error('Email not found for this username')
-  }
-
-  // Step 2: Sign in using the email and password
-  const { data, error: authError } = await supabase.auth.signInWithPassword({
-    email: profile.email,
-    password,
-  })
-
-  if (authError) {
-    console.error('Auth error:', authError)
-    throw new Error(authError.message)
-  }
-
-  // Step 3: Return session
-  return data.session ?? null
-}
 
   const signOut = async () => {
     try {
@@ -105,7 +108,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, signInWithGithub, signInWithGoogle, signInWithUsername, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signInWithGithub, signInWithGoogle, signInWithUsername, signOut }}>
       {children}
     </AuthContext.Provider>
   );
