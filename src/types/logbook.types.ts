@@ -5,14 +5,23 @@
 export interface LogbookEntry {
   id: string;
   user_id: string;
-  date: string; // ISO date string (YYYY-MM-DD)
-  activity: string;
-  start_time: string; // HH:MM format
-  end_time: string; // HH:MM format
-  duration: string; // e.g., "2h 30m"
+  project_id?: string | null;
+  task_id?: string | null;
+  entry_date: string; // Date (YYYY-MM-DD)
+  start_time?: string | null; // Timestamptz
+  end_time?: string | null; // Timestamptz
+  duration_minutes?: number | null; // Integer
+  content: string; // Activity description
+  category?: string | null; // e.g., 'daily task', 'project', 'other'
+  created_at?: string;
+  updated_at?: string;
+  
+  // Legacy fields for backward compatibility
+  date?: string;
+  activity?: string;
+  duration?: string;
   description?: string;
   weekly_logbook_name?: string | null;
-  created_at?: string;
 }
 
 export interface CreateLogbookEntryDTO {
@@ -39,3 +48,5 @@ export interface WeeklyLogbook {
   entriesCount: number;
   entries: LogbookEntry[];
 }
+
+export type FileType = 'avatar' | 'document' | 'image';

@@ -7,34 +7,59 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '@/context/AuthContext';
 import {
-  Home,
-  Activity,
-  FileText,
-  BarChart,
-  LogOut,
   ChevronRight,
-  Settings,
-  User,
   ChevronDown,
+  LogOut,
+  User,
+  Menu,
+  X,
+  Home,
+  Briefcase,
+  GraduationCap,
+  Users,
+  BarChart3,
+  BookOpen,
+  Eye,
+  UserCheck,
+  FileCheck,
+  LayoutDashboard,
+  ScrollText,
+  Database,
+  UserPlus,
+  FileText,
+  CheckSquare,
+  Star,
+  TrendingUp,
+  Shield,
+  ListChecks,
+  ClipboardList,
 } from 'lucide-react';
+import { ROLE_MENUS, ROLES } from '@/utils/roleConfig';
+
+const ICONS = {
+  Home,
+  BookOpen,
+  Briefcase,
+  CheckSquare,
+  Star,
+  TrendingUp,
+  Users,
+  Shield,
+  ListChecks,
+  FileCheck,
+  LayoutDashboard,
+  ScrollText,
+  Database,
+  UserPlus,
+  FileText,
+  BarChart3,
+  ClipboardList,
+  Eye,
+  GraduationCap,
+  UserCheck,
+};
 
 // Navigation items dengan grouping
-const navigationSections = [
-  {
-    title: 'Navigation',
-    items: [
-      { href: '/home', label: 'Dashboard', icon: Home },
-      { href: '/dashboard', label: 'Aktivitas', icon: Activity },
-    ],
-  },
-  {
-    title: 'Management',
-    items: [
-      { href: '/data-management', label: 'Laporan', icon: FileText },
-      { href: '/settings', label: 'Status', icon: BarChart },
-    ],
-  },
-];
 
 interface EnhancedSidebarProps {
   isCollapsed: boolean;
@@ -43,7 +68,7 @@ interface EnhancedSidebarProps {
 export function EnhancedSidebar({ isCollapsed }: EnhancedSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
@@ -73,6 +98,17 @@ export function EnhancedSidebar({ isCollapsed }: EnhancedSidebarProps) {
     }
   }, [isCollapsed]);
 
+  const role = profile?.role ?? ROLES.INTERN;
+  const menus = ROLE_MENUS[role];
+  const navigationSections = menus.map((section) => ({
+    title: section.section,
+    items: section.items.map((item) => ({
+      href: item.path,
+      label: item.label,
+      icon: ICONS[item.icon as keyof typeof ICONS] || Home,
+    })),
+  }));
+
   const handleLogout = async () => {
     try {
       await signOut();
@@ -82,17 +118,14 @@ export function EnhancedSidebar({ isCollapsed }: EnhancedSidebarProps) {
   };
 
   const handleProfileAction = (action: 'profile' | 'settings') => {
+    void action; // keep signature stable; settings navigates to profile for now
     setShowProfileDropdown(false);
-    if (action === 'profile') {
-      navigate('/profile');
-    } else {
-      navigate('/settings');
-    }
+    navigate('/profile');
   };
 
   // Get user display name
-  const userName = 'admin';
-  const userEmail = 'admin@dummy.com';
+  const userName = profile?.full_name || profile?.username || 'User';
+  const userEmail = profile?.email || '';
   const userInitial = userName.charAt(0).toUpperCase();
 
   return (
@@ -160,13 +193,6 @@ export function EnhancedSidebar({ isCollapsed }: EnhancedSidebarProps) {
               <User className="w-4 h-4 text-gray-600" />
               <span className="text-sm text-gray-700 font-medium">View Profile</span>
             </button>
-            <button
-              onClick={() => handleProfileAction('settings')}
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-white/70 transition-colors text-left"
-            >
-              <Settings className="w-4 h-4 text-gray-600" />
-              <span className="text-sm text-gray-700 font-medium">Settings</span>
-            </button>
             <div className="border-t border-gray-300 my-2" />
             <button
               onClick={handleLogout}
@@ -195,7 +221,7 @@ export function EnhancedSidebar({ isCollapsed }: EnhancedSidebarProps) {
             {/* Section Items */}
             <ul className="space-y-1 px-3">
               {section.items.map((item) => {
-                const isActive = location.pathname === item.href;
+                const isActive = location.pathname.startsWith(item.href);
                 const Icon = item.icon;
 
                 return (

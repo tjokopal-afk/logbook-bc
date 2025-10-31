@@ -5,10 +5,12 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProfileForm } from '@/components/settings/ProfileForm';
+import { ProfileFormReadOnly } from '@/components/settings/ProfileFormReadOnly';
 import { useAuth } from '@/context/AuthContext';
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superuser';
 
   return (
     <DashboardLayout 
@@ -16,24 +18,28 @@ export default function ProfilePage() {
       breadcrumb={[{ label: 'Pengaturan' }, { label: 'Profil' }]}
     >
       <div className="max-w-4xl space-y-6">
-        {user?.email && (
+        {profile?.email && (
           <p className="text-sm text-gray-500">
-            Login sebagai: <span className="font-medium">{user.email}</span>
+            Login sebagai: <span className="font-medium">{profile.email}</span>
           </p>
         )}
 
-        {/* Profile Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Data Pribadi</CardTitle>
-            <CardDescription>
-              Update informasi pribadi dan data magang Anda. Data ini akan digunakan dalam PDF timesheet.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProfileForm />
-          </CardContent>
-        </Card>
+        {/* Profile Form - Different for Admin vs Non-Admin */}
+        {isAdmin ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Pribadi</CardTitle>
+              <CardDescription>
+                Update informasi pribadi dan data magang Anda. Data ini akan digunakan dalam PDF timesheet.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProfileForm />
+            </CardContent>
+          </Card>
+        ) : (
+          <ProfileFormReadOnly />
+        )}
 
         {/* Info Card */}
         <Card className="bg-blue-50 border-blue-200">

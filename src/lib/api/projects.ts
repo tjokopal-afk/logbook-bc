@@ -1,16 +1,5 @@
 import { supabase } from '@/supabase'
-
-export interface Project {
-  id: string
-  name: string
-  description?: string
-  charter_url?: string
-  start_date?: string
-  end_date?: string
-  deadline?: string
-  created_by?: string
-  created_at?: string
-}
+import type { Project } from './types'
 
 export async function getProjects(): Promise<Project[]> {
   const { data, error } = await supabase.from('projects').select('*')
