@@ -6,6 +6,7 @@ export * from './logbook'
 export * from './reviews'
 export * from './documents'
 export * from './audit'
+export * from './types'
 
 export { default as profiles } from './profiles'
 export { default as projects } from './projects'
