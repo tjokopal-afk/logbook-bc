@@ -2,38 +2,21 @@
 // MENTOR DASHBOARD
 // =========================================
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useProjects } from '@/hooks/useProjects';
+import DashboardStats from '@/components/common/DashboardStats';
+import QuickActions from '@/components/common/QuickActions';
+import UpcomingDeadlines from '@/components/common/UpcomingDeadlines';
+import RecentActivity from '@/components/common/RecentActivity';
+import { FileCheck, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Briefcase, ListChecks, FileCheck, Users } from 'lucide-react';
 
 export default function MentorDashboard() {
   const { profile, refreshProfile } = useAuth();
-  const { fetchMyProjects } = useProjects();
-
-  const [stats, setStats] = useState({
-    totalProjects: 0,
-    totalTasks: 0,
-    pendingReviews: 0,
-    activeInterns: 0
-  });
 
   useEffect(() => {
     refreshProfile(); // Ensure current user profile
-    loadDashboardData();
   }, []);
-
-  const loadDashboardData = async () => {
-    const projectsResult = await fetchMyProjects();
-    
-    setStats({
-      totalProjects: projectsResult.data?.length || 0,
-      totalTasks: 0, // Will be calculated from projects
-      pendingReviews: 0, // TODO: Implement pending reviews count
-      activeInterns: 0 // TODO: Implement active interns count
-    });
-  };
 
   return (
     <div className="p-6 space-y-6">
@@ -56,50 +39,15 @@ export default function MentorDashboard() {
       </div>
 
       {/* Stats Grid - Mentor View */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">💼 My Projects</CardTitle>
-            <Briefcase className="h-5 w-5 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600">{stats.totalProjects}</div>
-            <p className="text-xs text-muted-foreground mt-1">Projects I'm mentoring</p>
-          </CardContent>
-        </Card>
+      <DashboardStats role="mentor" />
 
-        <Card className="border-l-4 border-l-teal-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">👥 Interns Under Me</CardTitle>
-            <Users className="h-5 w-5 text-teal-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-teal-600">{stats.activeInterns}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active interns mentored</p>
-          </CardContent>
-        </Card>
+      {/* Quick Actions Widget */}
+      <QuickActions role="mentor" />
 
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">📋 Pending Reviews</CardTitle>
-            <FileCheck className="h-5 w-5 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-600">{stats.pendingReviews}</div>
-            <p className="text-xs text-muted-foreground mt-1">Entries awaiting review</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">✅ Tasks Created</CardTitle>
-            <ListChecks className="h-5 w-5 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-orange-600">{stats.totalTasks}</div>
-            <p className="text-xs text-muted-foreground mt-1">Tasks assigned to interns</p>
-          </CardContent>
-        </Card>
+      {/* Widgets Grid */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <UpcomingDeadlines limit={5} />
+        <RecentActivity limit={5} />
       </div>
 
       {/* Mentoring Actions - Mentor Only */}

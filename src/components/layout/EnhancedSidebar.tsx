@@ -11,8 +11,6 @@ import {
   ChevronDown,
   LogOut,
   User,
-  Menu,
-  X,
   Home,
   Briefcase,
   GraduationCap,
@@ -33,6 +31,8 @@ import {
   Shield,
   ListChecks,
   ClipboardList,
+  Combine,
+  Building2,
 } from 'lucide-react';
 import { ROLE_MENUS, ROLES } from '@/utils/roleConfig';
 
@@ -57,6 +57,8 @@ const ICONS = {
   Eye,
   GraduationCap,
   UserCheck,
+  Combine,
+  Building2,
 };
 
 // Navigation items dengan grouping

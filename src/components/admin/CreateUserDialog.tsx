@@ -1,9 +1,9 @@
 // =========================================
 // CREATE USER DIALOG
-// Dialog for creating new users
+// Dialog for creating new users with admin API
 // =========================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { createUserWithAdmin } from '@/services/userService';
 
 interface CreateUserDialogProps {
   isOpen: boolean;
@@ -21,60 +22,111 @@ interface CreateUserDialogProps {
 export function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateUserDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [divisions, setDivisions] = useState<{ id: number; nama: string; divisi: string }[]>([]);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     full_name: '',
     role: 'intern' as 'intern' | 'mentor' | 'admin' | 'superuser',
     affiliation: '',
-    department: '',
+    divisi: null as number | null,
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      loadDivisions();
+      // Reset form when dialog opens
+      setFormData({
+        email: '',
+        password: '',
+        full_name: '',
+        role: 'intern',
+        affiliation: '',
+        divisi: null,
+      });
+    }
+  }, [isOpen]);
+
+  const loadDivisions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('departments')
+        .select('id, nama, divisi')
+        .not('divisi', 'is', null)
+        .order('nama', { ascending: true })
+        .order('divisi', { ascending: true });
+
+      if (error) throw error;
+      setDivisions(data || []);
+    } catch (error) {
+      console.error('Error loading divisions:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
+    if (!formData.email || !formData.password || !formData.full_name) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast({
+        title: 'Validation Error',
+        description: 'Password must be at least 6 characters',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Call service function to create user with admin API
+      const result = await createUserWithAdmin({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            full_name: formData.full_name,
-            role: formData.role,
-          },
-        },
+        full_name: formData.full_name,
+        role: formData.role,
+        affiliation: formData.affiliation || undefined,
+        divisi: formData.divisi,
       });
 
-      if (authError) throw authError;
+      if (result.success) {
+        toast({
+          title: 'Success!',
+          description: result.message,
+        });
 
-      if (authData.user) {
-        // Update profile with additional info
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: formData.full_name,
-            role: formData.role,
-            affiliation: formData.affiliation,
-            department: formData.department,
-          })
-          .eq('id', authData.user.id);
+        // Reset form and close dialog
+        setFormData({
+          email: '',
+          password: '',
+          full_name: '',
+          role: 'intern',
+          affiliation: '',
+          divisi: null,
+        });
 
-        if (profileError) throw profileError;
+        onSuccess();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || result.message,
+          variant: 'destructive',
+        });
       }
-
-      toast({
-        title: 'Success!',
-        description: 'User created successfully',
-      });
-
-      onSuccess();
-    } catch (error: any) {
-      console.error('Error creating user:', error);
+    } catch (error) {
+      console.error('Unexpected error creating user:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create user',
+        description: 'An unexpected error occurred while creating the user',
         variant: 'destructive',
       });
     } finally {
@@ -140,7 +192,7 @@ export function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateUserDialo
               id="role"
               required
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value as 'intern' | 'mentor' | 'admin' | 'superuser' })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
               <option value="intern">Intern</option>
@@ -152,26 +204,37 @@ export function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateUserDialo
 
           {/* Affiliation */}
           <div>
-            <Label htmlFor="affiliation">Affiliation</Label>
+            <Label htmlFor="affiliation">
+              {formData.role === 'intern' ? 'University' : 'Company'}
+            </Label>
             <Input
               id="affiliation"
               type="text"
               value={formData.affiliation}
               onChange={(e) => setFormData({ ...formData, affiliation: e.target.value })}
-              placeholder="University/Company"
+              placeholder={formData.role === 'intern' ? 'e.g., Universitas Indonesia' : 'e.g., PT. Berau Coal'}
             />
           </div>
 
-          {/* Department */}
+          {/* Division */}
           <div>
-            <Label htmlFor="department">Department</Label>
-            <Input
-              id="department"
-              type="text"
-              value={formData.department}
-              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              placeholder="IT Department"
-            />
+            <Label htmlFor="divisi">Division (Divisi)</Label>
+            <select
+              id="divisi"
+              value={formData.divisi || ''}
+              onChange={(e) => setFormData({ ...formData, divisi: e.target.value ? Number(e.target.value) : null })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Select division (optional)</option>
+              {divisions.map((div) => (
+                <option key={div.id} value={div.id}>
+                  {div.nama} - {div.divisi}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Assign user to a specific division
+            </p>
           </div>
 
           <DialogFooter>

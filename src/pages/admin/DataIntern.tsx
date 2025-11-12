@@ -29,13 +29,18 @@ import { format } from 'date-fns';
 interface InternData {
   id: string;
   email: string;
+  username?: string;
   full_name: string;
   affiliation: string;
-  department: string;
-  batch?: string;
+  jurusan?: string;
+  divisi?: number;
+  divisi_name?: string;
+  batch?: number;
+  batch_name?: string;
+  nomor_induk?: string;
   start_date?: string;
   end_date?: string;
-  mentor_id?: string;
+  mentor?: string;
   mentor_name?: string;
   project_id?: string;
   project_name?: string;
@@ -52,7 +57,7 @@ export default function DataIntern() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [affiliationFilter, setAffiliationFilter] = useState<string>('all');
-  const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+  const [divisionFilter, setDivisionFilter] = useState<string>('all');
   const [batchFilter, setBatchFilter] = useState<string>('all');
   
   // Dialog states
@@ -62,20 +67,36 @@ export default function DataIntern() {
 
   // Get unique values for filters
   const [affiliations, setAffiliations] = useState<string[]>([]);
-  const [departments, setDepartments] = useState<string[]>([]);
-  const [batches, setBatches] = useState<string[]>([]);
+  const [divisions, setDivisions] = useState<string[]>([]);
+  const [batches, setBatches] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
     loadInterns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     applyFilters();
-  }, [interns, searchQuery, statusFilter, affiliationFilter, departmentFilter, batchFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interns, searchQuery, statusFilter, affiliationFilter, divisionFilter, batchFilter]);
 
   const loadInterns = async () => {
     setLoading(true);
     try {
+      // Load batch and division lookup data first
+      const { data: batchesData } = await supabase
+        .from('batches')
+        .select('id, batch_name');
+      
+      const { data: departmentsData } = await supabase
+        .from('departments')
+        .select('id, nama, divisi')
+        .not('divisi', 'is', null);
+
+      // Create lookup maps
+      const batchMap = new Map(batchesData?.map(b => [b.id, b.batch_name]) || []);
+      const divisionMap = new Map(departmentsData?.map(d => [d.id, `${d.nama} - ${d.divisi}`]) || []);
+
       // Fetch all intern profiles
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
@@ -91,8 +112,8 @@ export default function DataIntern() {
           // Get mentor info
           const { data: mentorData } = await supabase
             .from('profiles')
-            .select('id, full_name')
-            .eq('id', profile.mentor_id || '')
+            .select('id, full_name, username')
+            .eq('id', profile.mentor || '')
             .single();
 
           // Get project info
@@ -102,6 +123,8 @@ export default function DataIntern() {
             .eq('user_id', profile.id)
             .limit(1)
             .single();
+
+          const projectInfo = projectData as { project_id: string; projects: { name: string } } | null;
 
           // Get logbook stats
           const { count: totalEntries } = await supabase
@@ -114,7 +137,7 @@ export default function DataIntern() {
             .select('duration_minutes')
             .eq('user_id', profile.id);
 
-          const totalHours = durationData?.reduce((sum, entry) => sum + (entry.duration_minutes || 0), 0) / 60 || 0;
+          const totalHours = (durationData?.reduce((sum, entry) => sum + (entry.duration_minutes || 0), 0) ?? 0) / 60 || 0;
 
           // Determine status
           let status: 'active' | 'completed' | 'upcoming' = 'active';
@@ -136,16 +159,21 @@ export default function DataIntern() {
           return {
             id: profile.id,
             email: profile.email,
+            username: profile.username,
             full_name: profile.full_name || 'No name',
             affiliation: profile.affiliation || '-',
-            department: profile.department || '-',
-            batch: profile.batch || '-',
+            jurusan: profile.jurusan || '-',
+            divisi: profile.divisi || undefined,
+            divisi_name: profile.divisi ? (divisionMap.get(profile.divisi) || '-') : '-',
+            batch: profile.batch || undefined,
+            batch_name: profile.batch ? (batchMap.get(profile.batch) || '-') : '-',
+            nomor_induk: profile.nomor_induk || '-',
             start_date: profile.start_date,
             end_date: profile.end_date,
-            mentor_id: profile.mentor_id,
-            mentor_name: mentorData?.full_name || '-',
-            project_id: (projectData as any)?.project_id,
-            project_name: (projectData as any)?.projects?.name || '-',
+            mentor: profile.mentor,
+            mentor_name: mentorData?.full_name || mentorData?.username || '-',
+            project_id: projectInfo?.project_id,
+            project_name: projectInfo?.projects?.name || '-',
             status,
             total_entries: totalEntries || 0,
             total_hours: Math.round(totalHours),
@@ -161,14 +189,12 @@ export default function DataIntern() {
       );
       setAffiliations(uniqueAffiliations);
 
-      const uniqueDepartments = Array.from(
-        new Set(internsWithData.map((i) => i.department).filter((d) => d !== '-'))
+      const uniqueDivisions = Array.from(
+        new Set(internsWithData.map((i) => i.divisi_name || '').filter((d) => d !== '-' && d !== ''))
       );
-      setDepartments(uniqueDepartments);
+      setDivisions(uniqueDivisions);
 
-      const uniqueBatches = Array.from(
-        new Set(internsWithData.map((i) => i.batch || '').filter((b) => b !== '-' && b !== ''))
-      );
+      const uniqueBatches = batchesData?.map(b => ({ id: b.id, name: b.batch_name })) || [];
       setBatches(uniqueBatches);
     } catch (error) {
       console.error('Error loading interns:', error);
@@ -207,14 +233,14 @@ export default function DataIntern() {
       filtered = filtered.filter((intern) => intern.affiliation === affiliationFilter);
     }
 
-    // Apply department filter
-    if (departmentFilter !== 'all') {
-      filtered = filtered.filter((intern) => intern.department === departmentFilter);
+    // Apply division filter
+    if (divisionFilter !== 'all') {
+      filtered = filtered.filter((intern) => intern.divisi_name === divisionFilter);
     }
 
     // Apply batch filter
     if (batchFilter !== 'all') {
-      filtered = filtered.filter((intern) => intern.batch === batchFilter);
+      filtered = filtered.filter((intern) => intern.batch_name === batchFilter);
     }
 
     setFilteredInterns(filtered);
@@ -379,17 +405,17 @@ export default function DataIntern() {
               </select>
             </div>
 
-            {/* Department Filter */}
+            {/* Division Filter */}
             <div className="w-full md:w-48">
               <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
+                value={divisionFilter}
+                onChange={(e) => setDivisionFilter(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
-                <option value="all">All Departments</option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
+                <option value="all">All Divisions</option>
+                {divisions.map((div) => (
+                  <option key={div} value={div}>
+                    {div}
                   </option>
                 ))}
               </select>
@@ -404,8 +430,8 @@ export default function DataIntern() {
               >
                 <option value="all">All Batches</option>
                 {batches.map((batch) => (
-                  <option key={batch} value={batch}>
-                    {batch}
+                  <option key={batch.id} value={batch.name}>
+                    {batch.name}
                   </option>
                 ))}
               </select>
@@ -459,6 +485,9 @@ export default function DataIntern() {
                       Affiliation
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Division/Batch
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Mentor
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -499,9 +528,17 @@ export default function DataIntern() {
                           <Building className="w-4 h-4 text-gray-400" />
                           {intern.affiliation}
                         </div>
-                        {intern.department !== '-' && (
-                          <div className="text-xs text-gray-500">{intern.department}</div>
-                        )}
+                        <div className="text-xs text-gray-500">
+                          {intern.jurusan !== '-' ? intern.jurusan : ''}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {intern.divisi_name !== '-' ? intern.divisi_name : '-'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {intern.batch_name !== '-' ? `Batch: ${intern.batch_name}` : ''}
+                        </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{intern.mentor_name}</div>

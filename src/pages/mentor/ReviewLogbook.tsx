@@ -1,164 +1,210 @@
 // =========================================
 // REVIEW LOGBOOK PAGE - Mentor View
 // Review weekly reports submitted by interns
+// Uses logbookReviewService for approve/reject workflow
 // =========================================
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Search, 
   CheckCircle2, 
   Clock,
-  Inbox
+  Inbox,
+  XCircle,
+  Calendar,
+  Briefcase,
+  ChevronDown,
+  ChevronRight,
+  FileText
 } from 'lucide-react';
-import { PendingReportCard } from '@/components/mentor/PendingReportCard';
+import { supabase } from '@/supabase';
+import { 
+  approveWeeklyLog,
+  rejectWeeklyLog
+} from '@/services/logbookReviewService';
+import type { LogbookEntry } from '@/lib/api/types';
+import { format } from 'date-fns';
+import { id as idLocale } from 'date-fns/locale';
 
-// Mock data - replace with real Supabase data
-interface WeeklyReport {
-  id: string;
-  weekName: string;
-  startDate: string;
-  endDate: string;
-  submittedAt: string;
-  internId: string;
-  internName: string;
-  internAvatar?: string;
-  affiliation: string;
-  projectName: string;
-  totalActivities: number;
-  totalHours: number;
-  keyActivitiesCompleted: string[];
-  status: 'pending' | 'reviewed';
-  rating?: number;
-  comment?: string;
-  reviewedAt?: string;
+// Extended interface for logbook with user details
+interface ExtendedLogbookEntry extends LogbookEntry {
+  week_summary?: string;
+  challenges?: string;
+  learnings?: string;
+  week_start?: string;
+  week_end?: string;
+  daily_entries?: Array<{
+    date: string;
+    entry_id?: string;
+    activities?: Array<{
+      id?: string;
+      description: string;
+      start_time: string;
+      end_time: string;
+      duration_minutes: number;
+    }>;
+    notes?: string;
+  }>;
+  review_comment?: string;
+  reviewed_at?: string;
+  user?: {
+    full_name: string;
+    email: string;
+    avatar_url?: string;
+  };
+  project?: {
+    name: string;
+  };
 }
 
 export default function ReviewLogbook() {
-  const [reports, setReports] = useState<WeeklyReport[]>([]);
-  const [filteredReports, setFilteredReports] = useState<WeeklyReport[]>([]);
+  const [reports, setReports] = useState<ExtendedLogbookEntry[]>([]);
+  const [filteredReports, setFilteredReports] = useState<ExtendedLogbookEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'reviewed'>('pending');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'submitted' | 'approved' | 'rejected'>('submitted');
   const [loading, setLoading] = useState(true);
+  const [expandedReport, setExpandedReport] = useState<string | null>(null);
+  const [reviewingReport, setReviewingReport] = useState<string | null>(null);
+  const [reviewComment, setReviewComment] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<string>('');
 
-  useEffect(() => {
-    loadReports();
+  const loadReports = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Get current user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+
+      // Get all submitted weekly logs with user and project info
+      const { data, error } = await supabase
+        .from('logbook_entries')
+        .select(`
+          *,
+          user:users!logbook_entries_user_id_fkey(full_name, email, avatar_url),
+          project:projects!logbook_entries_project_id_fkey(name)
+        `)
+        .like('category', 'weekly_%')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setReports((data as ExtendedLogbookEntry[]) || []);
+    } catch (error) {
+      console.error('Load reports error:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    applyFilters();
-  }, [reports, searchQuery, statusFilter]);
+    loadReports();
+  }, [loadReports]);
 
-  const loadReports = async () => {
-    setLoading(true);
-    // TODO: Replace with real Supabase query
-    const mockReports: WeeklyReport[] = [
-      {
-        id: '1',
-        weekName: 'Minggu 1',
-        startDate: '2025-10-01',
-        endDate: '2025-10-07',
-        submittedAt: '2025-10-08T10:30:00',
-        internId: 'intern1',
-        internName: 'John Doe',
-        affiliation: 'PT Telkom Indonesia',
-        projectName: 'Project Alpha',
-        totalActivities: 12,
-        totalHours: 38.5,
-        keyActivitiesCompleted: [
-          'Memahami Struktur Project',
-          'Setup Development Environment',
-          'Implementasi Fitur Login'
-        ],
-        status: 'pending'
-      },
-      {
-        id: '2',
-        weekName: 'Minggu 2',
-        startDate: '2025-10-08',
-        endDate: '2025-10-14',
-        submittedAt: '2025-10-15T09:15:00',
-        internId: 'intern2',
-        internName: 'Jane Smith',
-        affiliation: 'Universitas Indonesia',
-        projectName: 'Project Beta',
-        totalActivities: 15,
-        totalHours: 42.0,
-        keyActivitiesCompleted: [
-          'Memahami Struktur Project',
-          'Setup Development Environment',
-          'Implementasi Fitur Login',
-          'Integrasi API Backend'
-        ],
-        status: 'pending'
-      },
-      {
-        id: '3',
-        weekName: 'Minggu 1',
-        startDate: '2025-10-01',
-        endDate: '2025-10-07',
-        submittedAt: '2025-10-08T11:00:00',
-        internId: 'intern3',
-        internName: 'Ahmad Rizki',
-        affiliation: 'Institut Teknologi Bandung',
-        projectName: 'Project Alpha',
-        totalActivities: 10,
-        totalHours: 35.0,
-        keyActivitiesCompleted: [
-          'Memahami Struktur Project',
-          'Setup Development Environment'
-        ],
-        status: 'reviewed',
-        rating: 4,
-        comment: 'Good progress! Keep up the good work.',
-        reviewedAt: '2025-10-09T14:30:00'
-      }
-    ];
-
-    setReports(mockReports);
-    setLoading(false);
-  };
-
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = reports;
 
     // Status filter
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(r => r.status === statusFilter);
+      if (statusFilter === 'submitted') {
+        filtered = filtered.filter(r => r.category.includes('submitted') && !r.category.includes('approved') && !r.category.includes('rejected'));
+      } else if (statusFilter === 'approved') {
+        filtered = filtered.filter(r => r.category.includes('approved'));
+      } else if (statusFilter === 'rejected') {
+        filtered = filtered.filter(r => r.category.includes('rejected'));
+      }
     }
 
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(r =>
-        r.internName.toLowerCase().includes(query) ||
-        r.weekName.toLowerCase().includes(query) ||
-        r.projectName.toLowerCase().includes(query)
+        r.user?.full_name.toLowerCase().includes(query) ||
+        r.project?.name.toLowerCase().includes(query) ||
+        r.category.toLowerCase().includes(query)
       );
     }
 
     setFilteredReports(filtered);
+  }, [reports, searchQuery, statusFilter]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
+
+  const handleApprove = async (report: ExtendedLogbookEntry, weekNumber: number) => {
+    if (!window.confirm('Are you sure you want to approve this logbook?')) return;
+
+    try {
+      await approveWeeklyLog(
+        report.user_id,
+        report.project_id || '',
+        weekNumber,
+        currentUserId,
+        reviewComment || 'Approved'
+      );
+      alert('Logbook approved successfully!');
+      setReviewingReport(null);
+      setReviewComment('');
+      loadReports();
+    } catch (error) {
+      console.error('Approve error:', error);
+      alert('Failed to approve logbook');
+    }
   };
 
-  const handleReviewSubmit = (reportId: string, rating: number, comment: string) => {
-    console.log('Submitting review:', { reportId, rating, comment });
-    // TODO: Send to Supabase
-    
-    // Update local state
-    setReports(prev =>
-      prev.map(r =>
-        r.id === reportId
-          ? { ...r, status: 'reviewed' as const, rating, comment, reviewedAt: new Date().toISOString() }
-          : r
-      )
-    );
+  const handleReject = async (report: ExtendedLogbookEntry, weekNumber: number) => {
+    if (!reviewComment.trim()) {
+      alert('Please provide a reason for rejection');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to reject this logbook?')) return;
+
+    try {
+      await rejectWeeklyLog(
+        report.user_id,
+        report.project_id || '',
+        weekNumber,
+        currentUserId,
+        reviewComment
+      );
+      alert('Logbook rejected. Intern can resubmit.');
+      setReviewingReport(null);
+      setReviewComment('');
+      loadReports();
+    } catch (error) {
+      console.error('Reject error:', error);
+      alert('Failed to reject logbook');
+    }
   };
 
-  const pendingCount = reports.filter(r => r.status === 'pending').length;
-  const reviewedCount = reports.filter(r => r.status === 'reviewed').length;
+  const getWeekNumber = (category: string): number => {
+    const match = category.match(/weekly_(\d+)_/);
+    return match ? parseInt(match[1]) : 0;
+  };
+
+  const getStatusBadge = (category: string) => {
+    if (category.includes('approved')) {
+      return <Badge className="bg-green-600"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
+    } else if (category.includes('rejected')) {
+      return <Badge className="bg-red-600"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
+    } else if (category.includes('submitted')) {
+      return <Badge className="bg-blue-600"><Clock className="w-3 h-3 mr-1" />Pending Review</Badge>;
+    }
+    return <Badge variant="outline">Draft</Badge>;
+  };
+
+  const submittedCount = reports.filter(r => r.category.includes('submitted') && !r.category.includes('approved') && !r.category.includes('rejected')).length;
+  const approvedCount = reports.filter(r => r.category.includes('approved')).length;
+  const rejectedCount = reports.filter(r => r.category.includes('rejected')).length;
 
   if (loading) {
     return (
@@ -178,12 +224,12 @@ export default function ReviewLogbook() {
         <div>
           <h1 className="text-3xl font-bold">Review Logbook</h1>
           <p className="text-muted-foreground mt-2">
-            Review laporan mingguan dari intern
+            Review weekly reports submitted by interns
           </p>
         </div>
-        {pendingCount > 0 && (
+        {submittedCount > 0 && (
           <Badge className="bg-red-600 text-lg px-4 py-2">
-            {pendingCount} Pending
+            {submittedCount} Pending
           </Badge>
         )}
       </div>
@@ -196,7 +242,7 @@ export default function ReviewLogbook() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Cari nama intern, minggu, atau project..."
+                placeholder="Search by intern name, project, or week..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -211,22 +257,31 @@ export default function ReviewLogbook() {
                 All ({reports.length})
               </Button>
               <Button
-                variant={statusFilter === 'pending' ? 'default' : 'outline'}
+                variant={statusFilter === 'submitted' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setStatusFilter('pending')}
+                onClick={() => setStatusFilter('submitted')}
                 className="gap-1"
               >
                 <Clock className="w-4 h-4" />
-                Pending ({pendingCount})
+                Pending ({submittedCount})
               </Button>
               <Button
-                variant={statusFilter === 'reviewed' ? 'default' : 'outline'}
+                variant={statusFilter === 'approved' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setStatusFilter('reviewed')}
+                onClick={() => setStatusFilter('approved')}
                 className="gap-1"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                Reviewed ({reviewedCount})
+                Approved ({approvedCount})
+              </Button>
+              <Button
+                variant={statusFilter === 'rejected' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setStatusFilter('rejected')}
+                className="gap-1"
+              >
+                <XCircle className="w-4 h-4" />
+                Rejected ({rejectedCount})
               </Button>
             </div>
           </div>
@@ -241,26 +296,197 @@ export default function ReviewLogbook() {
               <div className="flex flex-col items-center justify-center text-center">
                 <Inbox className="w-16 h-16 text-gray-300 mb-4" />
                 <h3 className="text-lg font-semibold mb-2">
-                  {statusFilter === 'pending' ? 'Tidak ada laporan pending' : 'Tidak ada hasil'}
+                  {statusFilter === 'submitted' ? 'No pending reports' : 'No results'}
                 </h3>
                 <p className="text-sm text-gray-600">
                   {searchQuery
-                    ? 'Coba kata kunci lain'
-                    : statusFilter === 'pending'
-                    ? 'Semua laporan sudah direview'
-                    : 'Belum ada laporan yang direview'}
+                    ? 'Try a different search term'
+                    : statusFilter === 'submitted'
+                    ? 'All reports have been reviewed'
+                    : 'No reports in this category'}
                 </p>
               </div>
             </CardContent>
           </Card>
         ) : (
-          filteredReports.map((report) => (
-            <PendingReportCard
-              key={report.id}
-              report={report}
-              onReviewSubmit={handleReviewSubmit}
-            />
-          ))
+          filteredReports.map((report) => {
+            const weekNumber = getWeekNumber(report.category);
+            const isExpanded = expandedReport === report.id;
+            const isReviewing = reviewingReport === report.id;
+            const canReview = report.category.includes('submitted') && !report.category.includes('approved') && !report.category.includes('rejected');
+
+            return (
+              <Card key={report.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4">
+                      {/* Avatar */}
+                      <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg">
+                        {report.user?.full_name?.charAt(0) || 'U'}
+                      </div>
+                      
+                      {/* Info */}
+                      <div>
+                        <CardTitle className="text-xl">
+                          Week {weekNumber} - {report.user?.full_name || 'Unknown User'}
+                        </CardTitle>
+                        <CardDescription className="mt-1 space-y-1">
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="flex items-center gap-1">
+                              <Briefcase className="w-3 h-3" />
+                              {report.project?.name || 'Unknown Project'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {report.week_start && report.week_end
+                                ? `${format(new Date(report.week_start), 'dd MMM', { locale: idLocale })} - ${format(new Date(report.week_end), 'dd MMM yyyy', { locale: idLocale })}`
+                                : 'Date not available'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Submitted: {format(new Date(report.created_at), 'dd MMM yyyy HH:mm', { locale: idLocale })}
+                          </div>
+                        </CardDescription>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(report.category)}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setExpandedReport(isExpanded ? null : report.id)}
+                      >
+                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                {isExpanded && (
+                  <CardContent className="space-y-4">
+                    {/* Week Summary */}
+                    <div>
+                      <h4 className="font-semibold mb-2">Week Summary</h4>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {report.week_summary || 'No summary provided'}
+                      </p>
+                    </div>
+
+                    {/* Challenges */}
+                    <div>
+                      <h4 className="font-semibold mb-2">Challenges Faced</h4>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {report.challenges || 'No challenges reported'}
+                      </p>
+                    </div>
+
+                    {/* Learnings */}
+                    <div>
+                      <h4 className="font-semibold mb-2">Key Learnings</h4>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {report.learnings || 'No learnings reported'}
+                      </p>
+                    </div>
+
+                    {/* Daily Entries Summary */}
+                    {report.daily_entries && report.daily_entries.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold mb-2">Daily Activities ({report.daily_entries.length} days)</h4>
+                        <div className="space-y-2">
+                          {report.daily_entries.map((day, idx) => (
+                            <div key={idx} className="p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-medium text-sm">
+                                  {format(new Date(day.date), 'EEEE, dd MMM yyyy', { locale: idLocale })}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {day.activities?.length || 0} activities
+                                </span>
+                              </div>
+                              {day.notes && (
+                                <p className="text-xs text-gray-600 mt-1">{day.notes}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Review Section */}
+                    {canReview && (
+                      <div className="pt-4 border-t space-y-4">
+                        {!isReviewing ? (
+                          <div className="flex gap-3">
+                            <Button
+                              onClick={() => setReviewingReport(report.id)}
+                              className="flex-1 bg-blue-600 hover:bg-blue-700"
+                            >
+                              <FileText className="w-4 h-4 mr-2" />
+                              Review This Report
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Review Comment (optional for approval, required for rejection)
+                              </label>
+                              <Textarea
+                                placeholder="Provide feedback, suggestions, or reason for rejection..."
+                                value={reviewComment}
+                                onChange={(e) => setReviewComment(e.target.value)}
+                                rows={4}
+                              />
+                            </div>
+                            <div className="flex gap-3">
+                              <Button
+                                onClick={() => handleApprove(report, weekNumber)}
+                                className="flex-1 bg-green-600 hover:bg-green-700"
+                              >
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                Approve
+                              </Button>
+                              <Button
+                                onClick={() => handleReject(report, weekNumber)}
+                                variant="destructive"
+                                className="flex-1"
+                              >
+                                <XCircle className="w-4 h-4 mr-2" />
+                                Reject
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  setReviewingReport(null);
+                                  setReviewComment('');
+                                }}
+                                variant="outline"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Show review feedback if already reviewed */}
+                    {!canReview && report.review_comment && (
+                      <div className={`p-4 rounded-lg ${report.category.includes('approved') ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                        <h4 className="font-semibold mb-2">Review Feedback</h4>
+                        <p className="text-sm whitespace-pre-wrap">{report.review_comment}</p>
+                        {report.reviewed_at && (
+                          <p className="text-xs text-gray-500 mt-2">
+                            Reviewed on {format(new Date(report.reviewed_at), 'dd MMM yyyy HH:mm', { locale: idLocale })}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })
         )}
       </div>
     </div>

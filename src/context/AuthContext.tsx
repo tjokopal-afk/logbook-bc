@@ -11,7 +11,26 @@ interface Profile {
   role: Role;
   affiliation?: string;
   avatar_url?: string;
+  signature_url?: string;
+  phone?: string;
+  company?: string;
+  division?: string;
+  project_charter_url?: string;
+  start_date?: string;
+  end_date?: string;
+  last_sign_in_at?: string;
   created_at: string;
+  updated_at: string;
+  // Database fields that actually exist
+  jurusan?: string;
+  divisi?: string | number;
+  batch?: number;
+  nomor_induk?: number;
+  mentor?: string;
+  google_connected?: boolean;
+  google_email?: string | null;
+  affiliation_id?: string | null;
+  isActive?: boolean | null;
 }
 
 interface AuthContextType {
@@ -65,6 +84,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (data) {
         setProfile(data as Profile);
+        console.log('✅ Profile loaded:', {
+          id: data.id,
+          email: data.email,
+          company: data.company,
+          division: data.division,
+          start_date: data.start_date,
+          end_date: data.end_date,
+          phone: data.phone,
+          username: data.username,
+          full_name: data.full_name,
+        });
         setLoading(false);
       } else {
         console.error('🚨 No profile data - signing out');

@@ -1,14 +1,14 @@
 // =========================================
 // DELETE USER DIALOG
-// Confirmation dialog for deleting users
+// Confirmation dialog for deleting users with admin API
 // =========================================
 
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Loader2 } from 'lucide-react';
-import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { deleteUserWithAdmin } from '@/services/userService';
 
 interface User {
   id: string;
@@ -32,25 +32,28 @@ export function DeleteUserDialog({ isOpen, user, onClose, onSuccess }: DeleteUse
     setLoading(true);
 
     try {
-      // Delete user profile (auth user will be handled by trigger)
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', user.id);
+      // Delete user using admin API (will also delete auth user)
+      const result = await deleteUserWithAdmin(user.id);
 
-      if (error) throw error;
+      if (result.success) {
+        toast({
+          title: 'Success!',
+          description: result.message,
+        });
 
-      toast({
-        title: 'Success!',
-        description: 'User deleted successfully',
-      });
-
-      onSuccess();
-    } catch (error: any) {
-      console.error('Error deleting user:', error);
+        onSuccess();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || result.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Unexpected error deleting user:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to delete user',
+        description: 'An unexpected error occurred while deleting the user',
         variant: 'destructive',
       });
     } finally {

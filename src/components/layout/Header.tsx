@@ -4,7 +4,7 @@
 // =========================================
 
 import { useState } from 'react';
-import { Search, Bell, Menu, Activity, BookOpen, X } from 'lucide-react';
+import { Search, Bell, Menu, BookOpen, X } from 'lucide-react';
 
 interface HeaderProps {
   isSidebarCollapsed: boolean;
@@ -38,11 +38,11 @@ export function Header({ isSidebarCollapsed, onToggleSidebar, breadcrumb }: Head
         {/* Logo & Title - Hidden when collapsed */}
         <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'hidden' : 'flex'}`}>
           <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-md">
-            <Activity className="w-6 h-6 text-[#6B8E23]" />
+            <img src="/logo.png" alt="Logo" className="w-8 h-8" />
           </div>
           <div className="flex flex-col">
             <span className="text-base font-bold text-white leading-tight">Log Book</span>
-            <span className="text-xs text-white/80">Magang System</span>
+            <span className="text-xs text-white/80">BC Intern Program</span>
           </div>
         </div>
 

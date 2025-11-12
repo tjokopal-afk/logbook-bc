@@ -5,7 +5,7 @@
 
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { uploadFile } from '@/services/storageService';
+import { uploadClientFile } from '@/services/storageService';
 import { Upload, Loader2, X, Image as ImageIcon } from 'lucide-react';
 
 type FileUploaderType = 'photo' | 'signature' | 'avatar' | 'document' | 'image';
@@ -38,10 +38,10 @@ export function FileUploader({ type, currentUrl, onUploadSuccess }: FileUploader
     // Upload file
     setIsUploading(true);
     try {
-      // Map display types to storage types
-      const storageType = type === 'photo' || type === 'signature' ? 'avatar' : type;
-      const result = await uploadFile(file, storageType as 'avatar' | 'document' | 'image');
-      onUploadSuccess(result.url);
+  // Map display types to storage types used by helper
+  const storageType = type === 'photo' ? 'photo' : type;
+  const result = await uploadClientFile(file, storageType as 'avatar' | 'photo' | 'signature' | 'document' | 'image');
+  onUploadSuccess(result.url);
       setError('');
     } catch (error) {
       console.error('Error uploading file:', error);

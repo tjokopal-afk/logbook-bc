@@ -3,8 +3,8 @@
 // Full CRUD operations for all users
 // =========================================
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useEffect, useState, useCallback } from 'react';
+import { Card, CardContent,  CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,7 @@ import {
 import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { CreateUserDialog } from '@/components/admin/CreateUserDialog';
-import { EditUserDialogEnhanced } from '@/components/admin/EditUserDialogEnhanced';
+import { EditUserDialog } from '@/components/admin/EditUserDialog';
 import { DeleteUserDialog } from '@/components/admin/DeleteUserDialog';
 import { ViewUserDialog } from '@/components/admin/ViewUserDialog';
 
@@ -50,8 +50,6 @@ export default function KelolaUser() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [mentorFilter, setMentorFilter] = useState<string>('all');
-  const [mentors, setMentors] = useState<{ id: string; full_name: string }[]>([]);
   
   // Dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -60,16 +58,7 @@ export default function KelolaUser() {
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  useEffect(() => {
-    loadUsers();
-    loadMentors();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [users, searchQuery, roleFilter, mentorFilter]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -89,23 +78,9 @@ export default function KelolaUser() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const loadMentors = async () => {
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('role', 'mentor')
-        .order('full_name');
-      
-      setMentors(data || []);
-    } catch (error) {
-      console.error('Error loading mentors:', error);
-    }
-  };
-
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...users];
 
     // Apply search filter
@@ -124,13 +99,16 @@ export default function KelolaUser() {
       filtered = filtered.filter((user) => user.role === roleFilter);
     }
 
-    // Apply mentor filter
-    if (mentorFilter !== 'all') {
-      filtered = filtered.filter((user) => user.mentor_id === mentorFilter);
-    }
-
     setFilteredUsers(filtered);
-  };
+  }, [users, searchQuery, roleFilter]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   const handleView = (user: User) => {
     setSelectedUser(user);
@@ -298,22 +276,6 @@ export default function KelolaUser() {
               </select>
             </div>
 
-            {/* Mentor Filter */}
-            <div className="w-full md:w-48">
-              <select
-                value={mentorFilter}
-                onChange={(e) => setMentorFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="all">All Mentors</option>
-                {mentors.map((mentor) => (
-                  <option key={mentor.id} value={mentor.id}>
-                    {mentor.full_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Export Button */}
             <Button variant="outline" onClick={handleExportCSV}>
               <Download className="w-4 h-4 mr-2" />
@@ -432,9 +394,9 @@ export default function KelolaUser() {
       )}
 
       {showEditDialog && selectedUser && (
-        <EditUserDialogEnhanced
+        <EditUserDialog
           isOpen={showEditDialog}
-          user={selectedUser}
+          user={selectedUser as any}
           onClose={() => {
             setShowEditDialog(false);
             setSelectedUser(null);
@@ -450,7 +412,7 @@ export default function KelolaUser() {
       {showDeleteDialog && selectedUser && (
         <DeleteUserDialog
           isOpen={showDeleteDialog}
-          user={selectedUser}
+          user={selectedUser as any}
           onClose={() => {
             setShowDeleteDialog(false);
             setSelectedUser(null);
@@ -466,7 +428,7 @@ export default function KelolaUser() {
       {showViewDialog && selectedUser && (
         <ViewUserDialog
           isOpen={showViewDialog}
-          user={selectedUser}
+          user={selectedUser as any}
           onClose={() => {
             setShowViewDialog(false);
             setSelectedUser(null);

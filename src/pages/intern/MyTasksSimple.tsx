@@ -31,7 +31,7 @@ export default function MyTasksSimple() {
     if (!result.error) {
       setTasks(tasks.map(task => 
         task.id === taskId 
-          ? { ...task, percent_of_project: newProgress }
+          ? { ...task, project_weight: newProgress }
           : task
       ));
     }
@@ -39,7 +39,7 @@ export default function MyTasksSimple() {
   };
 
   const getTaskStatus = (task: any) => {
-    if (task.percent_of_project === 100) return 'completed';
+    if (task.project_weight === 100) return 'completed';
     if (task.deadline) {
       const deadline = new Date(task.deadline);
       const now = new Date();
@@ -102,7 +102,7 @@ export default function MyTasksSimple() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {tasks.filter(t => t.percent_of_project === 100).length}
+              {tasks.filter(t => t.project_weight === 100).length}
             </div>
           </CardContent>
         </Card>
@@ -112,7 +112,7 @@ export default function MyTasksSimple() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {tasks.filter(t => t.percent_of_project < 100).length}
+              {tasks.filter(t => t.project_weight < 100).length}
             </div>
           </CardContent>
         </Card>
@@ -164,23 +164,23 @@ export default function MyTasksSimple() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Progress</span>
-                      <span className="font-medium">{task.percent_of_project}%</span>
+                      <span className="font-medium">{task.project_weight}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${task.percent_of_project}%` }}
+                        style={{ width: `${task.project_weight}%` }}
                       />
                     </div>
                   </div>
 
                   {/* Quick Progress Buttons */}
-                  {task.percent_of_project < 100 && (
+                  {task.project_weight < 100 && (
                     <div className="flex gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleProgressUpdate(task.id, Math.min(task.percent_of_project + 25, 100))}
+                        onClick={() => handleProgressUpdate(task.id, Math.min(task.project_weight + 25, 100))}
                         disabled={updatingTaskId === task.id}
                       >
                         +25%
@@ -188,7 +188,7 @@ export default function MyTasksSimple() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleProgressUpdate(task.id, Math.min(task.percent_of_project + 50, 100))}
+                        onClick={() => handleProgressUpdate(task.id, Math.min(task.project_weight + 50, 100))}
                         disabled={updatingTaskId === task.id}
                       >
                         +50%
@@ -207,7 +207,7 @@ export default function MyTasksSimple() {
                   {/* Task Details */}
                   <div className="flex items-center gap-4 text-sm text-muted-foreground pt-2 border-t">
                     <div>
-                      <span className="font-medium">Weight:</span> {task.percent_of_project}% of project
+                      <span className="font-medium">Weight:</span> {task.project_weight}% of project
                     </div>
                     {task.deadline && (
                       <div>

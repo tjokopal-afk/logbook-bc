@@ -1,6 +1,16 @@
 // =========================================
 // LOGBOOK TYPE DEFINITIONS
+// Aligned with database schema
 // =========================================
+
+export interface Attachment {
+  id: string;
+  file_name: string;
+  file_url: string; // Public URL from Supabase Storage
+  file_size: number; // Bytes
+  mime_type: string;
+  uploaded_at: string;
+}
 
 export interface LogbookEntry {
   id: string;
@@ -12,33 +22,75 @@ export interface LogbookEntry {
   end_time?: string | null; // Timestamptz
   duration_minutes?: number | null; // Integer
   content: string; // Activity description
-  category?: string | null; // e.g., 'daily task', 'project', 'other'
+  
+  /**
+   * Category workflow:
+   * - 'draft' = Daily log not yet compiled
+   * - 'weekly_{weeknumber}_log_compile' = Compiled but not submitted
+   * - 'weekly_{weeknumber}_log_submitted' = Submitted to mentor
+   * - 'weekly_{weeknumber}_log_approved' = Approved by mentor (locked)
+   * - 'weekly_{weeknumber}_log_rejected_{x}' = Rejected, needs revision
+   */
+  category: string;
+  
+  // File attachments (stored as JSONB)
+  attachments?: Attachment[] | null;
+  
+  // Review workflow
+  is_submitted?: boolean;
+  is_approved?: boolean;
+  is_rejected?: boolean;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
+  reviewer_id?: string | null;
+  review_comment?: string | null;
+  
   created_at?: string;
   updated_at?: string;
+}
+
+export interface Review {
+  id: string;
+  entry_id: string; // References logbook_entries(id)
+  reviewer_id: string; // UUID
+  comment: string;
+  created_at: string;
   
-  // Legacy fields for backward compatibility
-  date?: string;
-  activity?: string;
-  duration?: string;
-  description?: string;
-  weekly_logbook_name?: string | null;
+  // Populated from joins
+  reviewer?: {
+    full_name: string;
+    email: string;
+  };
 }
 
 export interface CreateLogbookEntryDTO {
-  date: string;
-  activity: string;
-  start_time: string;
-  end_time: string;
+  // New simplified format (matches DB schema)
+  user_id?: string; // Optional - will use authenticated user if not provided
+  project_id?: string;
+  task_id?: string;
+  entry_date?: string;
+  content?: string;
+  start_time?: string;
+  end_time?: string;
+  duration_minutes?: number;
+  category?: string;
+  files?: File[]; // Optional file attachments
+  
+  // Old format (backward compatibility)
+  date?: string;
+  activity?: string;
   description?: string;
 }
 
 export interface UpdateLogbookEntryDTO {
-  date?: string;
-  activity?: string;
+  entry_date?: string;
+  content?: string;
   start_time?: string;
   end_time?: string;
-  description?: string;
-  duration?: string;
+  duration_minutes?: number;
+  project_id?: string;
+  task_id?: string;
+  category?: string;
 }
 
 export interface WeeklyLogbook {

@@ -31,7 +31,7 @@ export const PERMISSIONS = {
     
     // Tasks
     canViewAssignedTasks: true,
-    canUpdateTaskProgress: true,  // update percent_of_project
+    canUpdateTaskProgress: true,  // update project_weight
     canCreateTasks: false,
     
     // Reviews
@@ -166,8 +166,7 @@ export const ROLE_MENUS = {
     {
       section: 'Manajemen Proyek',
       items: [
-        { path: '/mentor/buat-proyek', label: 'Buat Proyek', icon: 'FolderPlus' },
-        { path: '/mentor/kelola-proyek', label: 'Kelola Proyek', icon: 'Settings' },
+        { path: '/mentor/projects', label: 'Kelola Proyek', icon: 'Briefcase' },
       ]
     }
   ],
@@ -188,10 +187,11 @@ export const ROLE_MENUS = {
       ]
     },
     {
-      section: 'Manajemen Proyek',
+      section: 'Manajemen Grup & Proyek',
       items: [
-        { path: '/admin/kelola-project', label: 'Kelola Proyek', icon: 'Briefcase' },
-        { path: '/admin/kelompok-intern', label: 'Kelompok Intern', icon: 'Users' },
+        { path: '/admin/kelola-project', label: 'Kelola Proyek', icon: 'Settings' },
+        { path: '/admin/divisi-user', label: 'Kelola Departement', icon: 'Building2' },
+        { path: '/admin/manajemen-batch', label: 'Kelola Batch', icon: 'Combine' },
       ]
     },
     {
@@ -211,29 +211,12 @@ export const ROLE_MENUS = {
       ]
     },
     {
-      section: 'Akses Penuh Sistem',
+      section: 'Monitoring',
       items: [
         { path: '/super/all-users', label: 'Semua User', icon: 'Users' },
-        { path: '/super/all-projects', label: 'Semua Proyek', icon: 'Briefcase' },
+        { path: '/super/projects', label: 'Semua Proyek', icon: 'Briefcase' },
         { path: '/super/all-logbooks', label: 'Semua Logbook', icon: 'BookOpen' },
         { path: '/super/all-reviews', label: 'Semua Review', icon: 'Star' },
-      ]
-    },
-    {
-      section: 'Manajemen Sistem',
-      items: [
-        { path: '/super/audit-log', label: 'Audit Log', icon: 'FileText' },
-        { path: '/super/system-settings', label: 'Pengaturan Sistem', icon: 'Settings' },
-        { path: '/super/database', label: 'Manajemen Database', icon: 'Database' },
-        { path: '/super/role-management', label: 'Manajemen Role', icon: 'Shield' },
-      ]
-    },
-    {
-      section: 'Monitoring & Analitik',
-      items: [
-        { path: '/super/system-health', label: 'Kesehatan Sistem', icon: 'Activity' },
-        { path: '/super/storage-analytics', label: 'Analitik Storage', icon: 'HardDrive' },
-        { path: '/super/performance-metrics', label: 'Metrik Performa', icon: 'Zap' },
       ]
     }
   ],

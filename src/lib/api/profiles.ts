@@ -89,10 +89,44 @@ export async function isUsernameAvailable(username: string): Promise<boolean> {
   return data === null
 }
 
+/**
+ * Update profile with project charter URL
+ */
+export async function updateProfileProjectCharter(id: string, projectCharterUrl: string): Promise<Profile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({
+      project_charter_url: projectCharterUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data as Profile
+}
+
+/**
+ * Get profile project charter URL
+ */
+export async function getProfileProjectCharterUrl(id: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('project_charter_url')
+    .eq('id', id)
+    .single()
+  
+  if (error) throw error
+  return data?.project_charter_url || null
+}
+
 export default {
   getProfileByUserId,
   getProfileByUsername,
   updateProfile,
+  updateProfileProjectCharter,
+  getProfileProjectCharterUrl,
   getAllProfiles,
   getInterns,
   isUsernameAvailable,

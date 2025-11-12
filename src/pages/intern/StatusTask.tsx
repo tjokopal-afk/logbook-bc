@@ -19,7 +19,7 @@ interface TaskWithStatus {
   title: string;
   description?: string;
   deadline?: string;
-  percent_of_project: number;
+  project_weight: number;
   created_at: string;
   project?: { id: string; name: string };
   status: TaskStatus;
@@ -51,11 +51,11 @@ export default function StatusTask() {
   };
 
   const calculateStatus = (task: any): TaskStatus => {
-    if (task.deadline && isPast(new Date(task.deadline)) && task.percent_of_project < 100) {
+    if (task.deadline && isPast(new Date(task.deadline)) && task.project_weight < 100) {
       return 'overdue';
     }
-    if (task.percent_of_project === 100) return 'completed';
-    if (task.percent_of_project > 0) return 'in_progress';
+    if (task.project_weight === 100) return 'completed';
+    if (task.project_weight > 0) return 'in_progress';
     return 'not_started';
   };
 
@@ -174,7 +174,7 @@ export default function StatusTask() {
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-gray-600">Progress</span>
-                    <span className="font-semibold">{task.percent_of_project}%</span>
+                    <span className="font-semibold">{task.project_weight}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
@@ -185,7 +185,7 @@ export default function StatusTask() {
                           ? 'bg-red-600'
                           : 'bg-blue-600'
                       }`}
-                      style={{ width: `${task.percent_of_project}%` }}
+                      style={{ width: `${task.project_weight}%` }}
                     />
                   </div>
                 </div>

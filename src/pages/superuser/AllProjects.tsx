@@ -11,14 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Briefcase, 
   Search, 
-  Plus, 
   Edit, 
   Trash2, 
   Eye,
-  Download,
   Loader2,
   Calendar,
-  Users
 } from 'lucide-react';
 import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -121,10 +118,6 @@ export default function AllProjects() {
             Complete project overview and management
           </p>
         </div>
-        <Button className="bg-red-600 hover:bg-red-700">
-          <Plus className="w-4 h-4 mr-2" />
-          Create Project
-        </Button>
       </div>
 
       {/* Stats */}

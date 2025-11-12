@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { supabase } from '@/supabase';
+import { useToast } from '@/hooks/use-toast';
 
 // Mock data - replace with real Supabase data
 interface Intern {
@@ -43,6 +45,7 @@ interface Intern {
 
 export default function InternSaya() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [interns, setInterns] = useState<Intern[]>([]);
   const [filteredInterns, setFilteredInterns] = useState<Intern[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,87 +53,165 @@ export default function InternSaya() {
   const [loading, setLoading] = useState(true);
   const [selectedIntern, setSelectedIntern] = useState<Intern | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
 
   useEffect(() => {
-    loadInterns();
+    getCurrentUser();
   }, []);
 
   useEffect(() => {
+    if (currentUserId) {
+      loadInterns();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId]);
+
+  useEffect(() => {
     applyFilters();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interns, searchQuery, statusFilter]);
+
+  const getCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setCurrentUserId(user.id);
+    }
+  };
 
   const loadInterns = async () => {
     setLoading(true);
-    // TODO: Replace with real Supabase query
-    const mockInterns: Intern[] = [
-      {
-        id: '1',
-        name: 'John Doe',
-        avatar: '',
-        email: 'john.doe@example.com',
-        affiliation: 'PT Telkom Indonesia',
-        projectName: 'Project Alpha',
-        startDate: '2025-09-01',
-        endDate: '2025-12-31',
-        status: 'active',
-        progress: 75,
-        lastActivity: '2025-10-28',
-        totalReports: 12,
-        totalHours: 156,
-        avgRating: 4.2
-      },
-      {
-        id: '2',
-        name: 'Jane Smith',
-        avatar: '',
-        email: 'jane.smith@example.com',
-        affiliation: 'Universitas Indonesia',
-        projectName: 'Project Beta',
-        startDate: '2025-09-15',
-        endDate: '2025-12-15',
-        status: 'active',
-        progress: 80,
-        lastActivity: '2025-10-29',
-        totalReports: 8,
-        totalHours: 98,
-        avgRating: 4.8
-      },
-      {
-        id: '3',
-        name: 'Ahmad Rizki',
-        avatar: '',
-        email: 'ahmad.rizki@example.com',
-        affiliation: 'Institut Teknologi Bandung',
-        projectName: 'Project Alpha',
-        startDate: '2025-09-01',
-        endDate: '2025-12-31',
-        status: 'active',
-        progress: 44,
-        lastActivity: '2025-10-20',
-        totalReports: 6,
-        totalHours: 72,
-        avgRating: 3.5
-      },
-      {
-        id: '4',
-        name: 'Sarah Johnson',
-        avatar: '',
-        email: 'sarah.johnson@example.com',
-        affiliation: 'Universitas Gadjah Mada',
-        projectName: 'Project Gamma',
-        startDate: '2025-08-15',
-        endDate: '2025-11-15',
-        status: 'completed',
-        progress: 100,
-        lastActivity: '2025-11-15',
-        totalReports: 15,
-        totalHours: 195,
-        avgRating: 4.5
-      }
-    ];
+    try {
+      // Get projects where current mentor is a participant
+      const { data: mentorProjects, error: projectsError } = await supabase
+        .from('project_participants')
+        .select('project_id')
+        .eq('user_id', currentUserId);
 
-    setInterns(mockInterns);
-    setLoading(false);
+      if (projectsError) throw projectsError;
+
+      if (!mentorProjects || mentorProjects.length === 0) {
+        setInterns([]);
+        setLoading(false);
+        return;
+      }
+
+      const projectIds = mentorProjects.map(p => p.project_id);
+
+      // Get all interns who are participants in these projects
+      const { data: internParticipants, error: participantsError } = await supabase
+        .from('project_participants')
+        .select(`
+          user_id,
+          project_id,
+          projects (
+            id,
+            name,
+            start_date,
+            end_date,
+            status
+          )
+        `)
+        .in('project_id', projectIds)
+        .neq('user_id', currentUserId);  // Exclude current mentor
+
+      if (participantsError) throw participantsError;
+
+      // Get unique intern IDs
+      const internIds = [...new Set(internParticipants?.map(p => p.user_id) || [])];
+
+      // Fetch intern profiles
+      const { data: internProfiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', internIds)
+        .eq('role', 'intern');
+
+      if (profilesError) throw profilesError;
+
+      // Build intern data with stats
+      const internsData = await Promise.all(
+        (internProfiles || []).map(async (profile) => {
+          // Find intern's primary project (or first project)
+          const internProject = internParticipants?.find(p => p.user_id === profile.id);
+          const project = internProject?.projects as { id: string; name: string; start_date: string; end_date: string; status: string } | undefined;
+
+          // Get logbook stats
+          const { count: totalReports } = await supabase
+            .from('logbook_entries')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', profile.id);
+
+          // Get total hours from logbook
+          const { data: logbookData } = await supabase
+            .from('logbook_entries')
+            .select('hours')
+            .eq('user_id', profile.id);
+
+          const totalHours = logbookData?.reduce((sum, entry) => sum + (entry.hours || 0), 0) || 0;
+
+          // Get task stats for progress calculation
+          const { data: tasksData } = await supabase
+            .from('tasks')
+            .select('is_reviewed, is_rejected')
+            .eq('assigned_to', profile.id);
+
+          const totalTasks = tasksData?.length || 0;
+          const completedTasks = tasksData?.filter(t => t.is_reviewed && !t.is_rejected).length || 0;
+          const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+          // Get average rating from reviews
+          const { data: reviewsData } = await supabase
+            .from('logbook_reviews')
+            .select('rating')
+            .eq('intern_id', profile.id)
+            .not('rating', 'is', null);
+
+          const avgRating = reviewsData && reviewsData.length > 0
+            ? reviewsData.reduce((sum, r) => sum + (r.rating || 0), 0) / reviewsData.length
+            : 0;
+
+          // Get last activity
+          const { data: lastActivityData } = await supabase
+            .from('logbook_entries')
+            .select('created_at')
+            .eq('user_id', profile.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          // Determine status based on project end date
+          const status = project && new Date(project.end_date) > new Date() ? 'active' : 'completed';
+
+          return {
+            id: profile.id,
+            name: profile.full_name || profile.email,
+            avatar: profile.avatar_url,
+            email: profile.email,
+            affiliation: profile.affiliation || 'No affiliation',
+            projectName: project?.name || 'No project assigned',
+            startDate: project?.start_date || new Date().toISOString(),
+            endDate: project?.end_date || new Date().toISOString(),
+            status: status as 'active' | 'completed',
+            progress: progress,
+            lastActivity: lastActivityData?.created_at || new Date().toISOString(),
+            totalReports: totalReports || 0,
+            totalHours: totalHours,
+            avgRating: avgRating
+          };
+        })
+      );
+
+      setInterns(internsData);
+    } catch (error) {
+      console.error('Error loading interns:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load interns',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const applyFilters = () => {

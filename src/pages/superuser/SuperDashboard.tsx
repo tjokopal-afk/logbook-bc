@@ -6,6 +6,9 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import QuickActions from '@/components/common/QuickActions';
+import UpcomingDeadlines from '@/components/common/UpcomingDeadlines';
+import RecentActivity from '@/components/common/RecentActivity';
 import { 
   Users, 
   Briefcase, 
@@ -28,9 +31,7 @@ interface SystemMetrics {
   totalLogbooks: number;
   totalReviews: number;
   activeSessions: number;
-  systemUptime: number;
   databaseSize: number;
-  failedLogins: number;
 }
 
 interface ActiveUser {
@@ -59,9 +60,7 @@ export default function SuperDashboard() {
     totalLogbooks: 0,
     totalReviews: 0,
     activeSessions: 0,
-    systemUptime: 99.9,
     databaseSize: 0,
-    failedLogins: 0,
   });
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [recentActions, setRecentActions] = useState<RecentAction[]>([]);
@@ -164,9 +163,7 @@ export default function SuperDashboard() {
         totalLogbooks: logbooksCount || 0,
         totalReviews: reviewsCount || 0,
         activeSessions: activeCount || 0,
-        systemUptime: 99.9, // TODO: Calculate from uptime monitoring
         databaseSize: dbSize,
-        failedLogins: 0, // TODO: Get from audit log
       });
     } catch (error) {
       console.error('Error loading metrics:', error);
@@ -200,7 +197,6 @@ export default function SuperDashboard() {
 
   const loadRecentActions = async () => {
     // TODO: Implement audit log table
-    // For now, use mock data
     setRecentActions([
       {
         id: '1',
@@ -357,6 +353,15 @@ export default function SuperDashboard() {
           </Card>
         </div>
       )}
+
+      {/* Quick Actions Widget */}
+      <QuickActions role="superuser" />
+
+      {/* Widgets Grid */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <UpcomingDeadlines limit={5} />
+        <RecentActivity limit={5} />
+      </div>
 
       {/* Real-time Monitoring Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

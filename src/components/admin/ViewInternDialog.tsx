@@ -20,9 +20,12 @@ import { format } from 'date-fns';
 interface InternData {
   id: string;
   email: string;
+  username?: string;
   full_name: string;
   affiliation: string;
-  department: string;
+  jurusan?: string;
+  divisi_name?: string;
+  batch_name?: string;
   start_date?: string;
   end_date?: string;
   mentor_name?: string;
@@ -85,8 +88,20 @@ export function ViewInternDialog({ isOpen, intern, onClose }: ViewInternDialogPr
                 Affiliation
               </div>
               <p className="font-semibold">{intern.affiliation}</p>
-              {intern.department !== '-' && (
-                <p className="text-xs text-gray-600 mt-1">{intern.department}</p>
+              {intern.jurusan && intern.jurusan !== '-' && (
+                <p className="text-xs text-gray-600 mt-1">{intern.jurusan}</p>
+              )}
+            </div>
+
+            {/* Division & Batch */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                <Building className="w-4 h-4" />
+                Division & Batch
+              </div>
+              <p className="font-semibold">{intern.divisi_name || 'Not assigned'}</p>
+              {intern.batch_name && intern.batch_name !== '-' && (
+                <p className="text-xs text-gray-600 mt-1">Batch: {intern.batch_name}</p>
               )}
             </div>
 

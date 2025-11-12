@@ -38,7 +38,7 @@ function calculateDurationMinutes(startTime: string, endTime: string): number | 
       return null;
     }
 
-    let totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+    const totalMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
 
     if (totalMinutes <= 0) {
       return null;
@@ -67,6 +67,36 @@ function handleServiceError(error: unknown, operation: string): never {
 // =========================================
 // DRAFT ENTRIES OPERATIONS
 // =========================================
+
+/**
+ * Get all entries for a specific date
+ * projectId is optional - if provided, filters by project; if null, gets all entries for user on that date
+ */
+export async function getEntriesByDate(
+  userId: string,
+  projectId: string | null,
+  entryDate: string
+): Promise<LogbookEntry[]> {
+  try {
+    let query = supabase
+      .from('logbook_entries')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('entry_date', entryDate);
+    
+    // Only filter by project_id if provided
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    }
+    
+    const { data, error } = await query.order('start_time', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    return handleServiceError(error, 'Get entries by date');
+  }
+}
 
 /**
  * Get all entries for current user
@@ -107,8 +137,51 @@ export async function getAllEntries(): Promise<LogbookEntry[]> {
 }
 
 /**
+ * Upload logbook attachment to storage
+ */
+async function uploadLogbookAttachment(
+  file: File,
+  userId: string,
+  date: string
+): Promise<{ id: string; file_name: string; file_url: string; file_size: number; mime_type: string; uploaded_at: string }> {
+  try {
+    const timestamp = Date.now();
+    const fileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `${userId}/${date}/${timestamp}-${fileName}`;
+
+    // Upload to storage
+    const { error: uploadError } = await supabase.storage
+      .from('logbook-attachments')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (uploadError) throw uploadError;
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('logbook-attachments')
+      .getPublicUrl(filePath);
+
+    return {
+      id: `${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
+      file_name: file.name,
+      file_url: urlData.publicUrl,
+      file_size: file.size,
+      mime_type: file.type,
+      uploaded_at: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Upload attachment error:', error);
+    throw new Error(`Failed to upload ${file.name}`);
+  }
+}
+
+/**
  * Create a new logbook entry
- * Optimized with auto-duration calculation and validation
+ * With attachment support and proper category workflow
+ * Supports both new (direct DB fields) and old (activity/description) formats
  */
 export async function createEntry(
   entryData: CreateLogbookEntryDTO
@@ -120,34 +193,101 @@ export async function createEntry(
       throw new Error('User not authenticated');
     }
 
-    // Calculate duration in minutes
-    const durationMinutes = calculateDurationMinutes(entryData.start_time, entryData.end_time);
+    // Determine if using new format or old format
+    const isNewFormat = entryData.content !== undefined;
+    const userId = entryData.user_id || userData.user.id;
     
-    if (!durationMinutes || durationMinutes <= 0) {
-      throw new Error('Invalid time range: end time must be after start time');
+    let content: string;
+    let startTime: string;
+    let endTime: string;
+    let date: string;
+    let durationMinutes: number;
+
+    if (isNewFormat) {
+      // New format: direct DB fields
+      content = entryData.content || '';
+      startTime = entryData.start_time || '';
+      endTime = entryData.end_time || '';
+      date = entryData.entry_date || '';
+      durationMinutes = entryData.duration_minutes || 0;
+      
+      if (!durationMinutes || durationMinutes <= 0) {
+        durationMinutes = calculateDurationMinutes(startTime, endTime) || 0;
+      }
+      // If times are provided in HH:MM form, convert to full ISO timestamp
+      // DB expects timestamptz; detect user's local timezone offset dynamically
+      if (!date) {
+        // fallback to today if entry_date not provided
+        date = new Date().toISOString().slice(0, 10);
+      }
+      const hhmmRegex = /^\d{1,2}:\d{2}$/;
+      // Helper to format a Date object's offset as +HH:MM or -HH:MM
+      const formatOffset = (d: Date) => {
+        const offsetMin = -d.getTimezoneOffset(); // minutes offset from UTC (e.g. +420)
+        const sign = offsetMin >= 0 ? '+' : '-';
+        const abs = Math.abs(offsetMin);
+        const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+        const mm = String(abs % 60).padStart(2, '0');
+        return `${sign}${hh}:${mm}`;
+      };
+      if (startTime && hhmmRegex.test(startTime)) {
+        // create a Date in the host timezone so we can compute its offset
+        const dt = new Date(`${date}T${startTime}`);
+        const offset = formatOffset(dt);
+        startTime = `${date}T${startTime}:00${offset}`;
+      }
+      if (endTime && hhmmRegex.test(endTime)) {
+        const dt = new Date(`${date}T${endTime}`);
+        const offset = formatOffset(dt);
+        endTime = `${date}T${endTime}:00${offset}`;
+      }
+    } else {
+      // Old format: activity/description fields
+      const activityText = entryData.activity || '';
+      const description = entryData.description || '';
+      content = description ? `${activityText}: ${description}` : activityText;
+      
+      startTime = entryData.start_time || '';
+      endTime = entryData.end_time || '';
+      date = entryData.date || entryData.entry_date || '';
+      
+      durationMinutes = calculateDurationMinutes(startTime, endTime) || 0;
+      
+      if (!durationMinutes || durationMinutes <= 0) {
+        throw new Error('Invalid time range: end time must be after start time');
+      }
+      
+      // Convert HH:MM to ISO timestamp
+      startTime = `${date}T${startTime}:00+07:00`;
+      endTime = `${date}T${endTime}:00+07:00`;
     }
 
-    // Combine activity and description into content
-    const content = entryData.description 
-      ? `${entryData.activity}: ${entryData.description}` 
-      : entryData.activity;
-
-    // Convert HH:MM to ISO timestamp
-    const date = entryData.date;
-    const start_time = `${date}T${entryData.start_time}:00+07:00`;
-    const end_time = `${date}T${entryData.end_time}:00+07:00`;
+    // Upload attachments if any
+    let attachments: Array<{ id: string; file_name: string; file_url: string; file_size: number; mime_type: string; uploaded_at: string }> | null = null;
+    if (entryData.files && entryData.files.length > 0) {
+      const uploadPromises = entryData.files.map(file => 
+        uploadLogbookAttachment(file, userId, date)
+      );
+      attachments = await Promise.all(uploadPromises);
+    }
 
     // Insert entry with correct field names
     const { data, error } = await supabase
       .from('logbook_entries')
       .insert({
-        user_id: userData.user.id,
+        user_id: userId,
+        project_id: entryData.project_id || null,
+        task_id: entryData.task_id || null,
         entry_date: date,
-        start_time,
-        end_time,
+        start_time: startTime,
+        end_time: endTime,
         duration_minutes: durationMinutes,
         content,
-        category: 'daily task',
+        category: entryData.category || 'draft', // Default to draft
+        attachments: attachments ? JSON.stringify(attachments) : null,
+        is_submitted: false,
+        is_approved: false,
+        is_rejected: false,
       })
       .select()
       .single();
@@ -170,9 +310,8 @@ export async function updateEntry(
   updates: UpdateLogbookEntryDTO
 ): Promise<LogbookEntry> {
   try {
-    // Note: Update function needs to be adapted to new schema
-    // For now, just update with provided data
-    const updateData: any = { 
+    // Update logbook entry with provided fields
+    const updateData: Partial<LogbookEntry> = { 
       ...updates,
       updated_at: new Date().toISOString()
     };
@@ -312,7 +451,7 @@ export async function getWeeklyLogbooks(): Promise<WeeklyLogbook[]> {
       );
 
       // Calculate date range
-      const dates = entries.map(e => e.date).sort();
+      const dates = entries.map(e => e.entry_date).sort();
       const startDate = dates[0] || '';
       const endDate = dates[dates.length - 1] || '';
 

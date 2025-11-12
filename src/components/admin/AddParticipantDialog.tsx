@@ -95,7 +95,7 @@ export function AddParticipantDialog({
       const participantsToAdd = selectedUsers.map((userId) => ({
         project_id: projectId,
         user_id: userId,
-        role: 'member',
+        role_in_project: 'member',
         joined_at: new Date().toISOString(),
       }));
 
@@ -141,8 +141,8 @@ export function AddParticipantDialog({
 
   const filteredUsers = availableUsers.filter(
     (user) =>
-      user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase())
+      (user.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (user.email?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
   return (

@@ -4,11 +4,11 @@
 // =========================================
 
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { 
   Briefcase, 
   Search, 
@@ -23,10 +23,11 @@ import {
 import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { CreateProjectDialog } from '@/components/admin/CreateProjectDialog';
-import { EditProjectDialog } from '@/components/admin/EditProjectDialog';
+import { EditProjectDialogFull } from '@/components/admin/EditProjectDialogFull';
 import { DeleteProjectDialog } from '@/components/admin/DeleteProjectDialog';
 import { ViewProjectDialog } from '@/components/admin/ViewProjectDialog';
 import { format } from 'date-fns';
+import { calculateProjectProgress } from '@/services/taskService';
 
 interface Project {
   id: string;
@@ -44,6 +45,7 @@ interface Project {
 
 export default function KelolaProject() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,17 +99,8 @@ export default function KelolaProject() {
             .select('*', { count: 'exact', head: true })
             .eq('project_id', project.id);
 
-          // Calculate completion rate
-          const { data: tasksData } = await supabase
-            .from('tasks')
-            .select('percent_of_project')
-            .eq('project_id', project.id);
-
-          const completionRate = tasksData && tasksData.length > 0
-            ? Math.round(
-                tasksData.reduce((sum, t) => sum + (t.percent_of_project || 0), 0) / tasksData.length
-              )
-            : 0;
+          // Calculate weighted completion rate using task service
+          const completionRate = await calculateProjectProgress(project.id);
 
           return {
             ...project,
@@ -154,14 +147,14 @@ export default function KelolaProject() {
     setFilteredProjects(filtered);
   };
 
-  const handleEdit = (project: Project) => {
-    setSelectedProject(project);
-    setShowEditDialog(true);
-  };
-
   const handleDelete = (project: Project) => {
     setSelectedProject(project);
     setShowDeleteDialog(true);
+  };
+
+  const handleEdit = (project: Project) => {
+    setSelectedProject(project);
+    setShowEditDialog(true);
   };
 
   const handleView = (project: Project) => {
@@ -304,7 +297,11 @@ export default function KelolaProject() {
           </div>
         ) : (
           filteredProjects.map((project) => (
-            <Card key={project.id} className="hover:shadow-lg transition-shadow">
+            <Card
+              key={project.id}
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => navigate(`/projects/${project.id}`)}
+            >
               <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -347,12 +344,9 @@ export default function KelolaProject() {
                 </div>
 
                 {/* Progress */}
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-600">Completion</span>
-                    <span className="font-semibold text-purple-600">{project.completion_rate}%</span>
-                  </div>
-                  <Progress value={project.completion_rate} className="h-2" />
+                <div className="flex justify-between items-center py-2 border-t border-b border-gray-200">
+                  <span className="text-sm text-gray-600">Completion</span>
+                  <span className="font-semibold text-gray-900">{project.completion_rate}%</span>
                 </div>
 
                 {/* Creator */}
@@ -365,7 +359,7 @@ export default function KelolaProject() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleView(project)}
+                    onClick={(e) => { e.stopPropagation(); handleView(project); }}
                     className="flex-1"
                   >
                     <Eye className="w-4 h-4 mr-1" />
@@ -374,7 +368,7 @@ export default function KelolaProject() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleEdit(project)}
+                    onClick={(e) => { e.stopPropagation(); handleEdit(project); }}
                     className="flex-1"
                   >
                     <Edit className="w-4 h-4 mr-1" />
@@ -383,7 +377,7 @@ export default function KelolaProject() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDelete(project)}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(project); }}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -408,7 +402,7 @@ export default function KelolaProject() {
       )}
 
       {showEditDialog && selectedProject && (
-        <EditProjectDialog
+        <EditProjectDialogFull
           isOpen={showEditDialog}
           project={selectedProject}
           onClose={() => {

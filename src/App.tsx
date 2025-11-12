@@ -16,43 +16,35 @@ import InternDashboard from '@/pages/intern/InternDashboard';
 import MyActivities from '@/pages/intern/MyActivities';
 import MyLogbook from '@/pages/intern/MyLogbook';
 import MyProjects from '@/pages/intern/MyProjects';
-import MyReviews from '@/pages/intern/MyReviews';
-import StatusTask from '@/pages/intern/StatusTask';
-import ProgressSaya from '@/pages/intern/ProgressSaya';
 import StatusDanReview from '@/pages/intern/StatusDanReview';
+import ProgressSaya from '@/pages/intern/ProgressSaya';
 
 // Mentor Pages
 import MentorDashboard from '@/pages/mentor/MentorDashboard';
-import ReviewLogbookSimple from '@/pages/mentor/ReviewLogbookSimple';
-import ReviewLogbook from '@/pages/mentor/ReviewLogbook';
+import ReviewLogbookTable from '@/pages/mentor/ReviewLogbookTable';
 import ProgressIntern from '@/pages/mentor/ProgressIntern';
-import KelolaTask from '@/pages/mentor/KelolaTask';
 import InternSaya from '@/pages/mentor/InternSaya';
-import BuatProyek from '@/pages/mentor/BuatProyek';
-import KelolaProyek from '@/pages/mentor/KelolaProyek';
+import MentorMyProjects from '@/pages/mentor/MyProjects';
 
 // Admin Pages
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import KelolaUser from '@/pages/admin/KelolaUser';
 import DataIntern from '@/pages/admin/DataIntern';
 import KelolaProject from '@/pages/admin/KelolaProject';
-import KelompokIntern from '@/pages/admin/KelompokIntern';
+import DivisiUser from '@/pages/admin/DivisiUser';
 import Monitoring from '@/pages/admin/Monitoring';
+import ManageBatch from '@/pages/admin/ManageBatch';
+
+// Common Pages
+import ProjectDetail from '@/pages/common/ProjectDetail';
 
 // Superuser Pages
 import SuperDashboard from '@/pages/superuser/SuperDashboard';
-import SuperDashboardEnhanced from '@/pages/superuser/SuperDashboardEnhanced';
 import AllUsers from '@/pages/superuser/AllUsers';
 import AllProjects from '@/pages/superuser/AllProjects';
 import AllLogbooks from '@/pages/superuser/AllLogbooks';
 import AllReviews from '@/pages/superuser/AllReviews';
-import AuditLog from '@/pages/superuser/AuditLog';
-import SystemSettings from '@/pages/superuser/SystemSettings';
-import DatabaseManagement from '@/pages/superuser/DatabaseManagement';
-import RoleManagement from '@/pages/superuser/RoleManagement';
-import SystemHealth from '@/pages/superuser/SystemHealth';
-import StorageAnalytics from '@/pages/superuser/StorageAnalytics';
-import PerformanceMetrics from '@/pages/superuser/PerformanceMetrics';
+import ViewAllProjects from '@/pages/superuser/ViewAllProjects';
 
 // Auth pages
 import LoginPage from "./pages/auth/LoginPage";
@@ -65,9 +57,6 @@ function App() {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, profile, loading } = useAuth();
-
-    // Removed orphaned session check - too aggressive
-    // Session is now stable and persists across tab switches
 
     // Clean redirect logic
     useEffect(() => {
@@ -128,6 +117,7 @@ function App() {
                 }>
                     <Route index element={<Navigate to="/intern/dashboard" replace />} />
                     <Route path="dashboard" element={<InternDashboard />} />
+                    <Route path="profile" element={<ProfilePage />} />
                     <Route path="aktivitas-saya" element={<MyActivities />} />
                     <Route path="laporan" element={<MyLogbook />} />
                     <Route path="status-dan-review" element={<StatusDanReview />} />
@@ -153,15 +143,18 @@ function App() {
                 }>
                     <Route index element={<Navigate to="/mentor/dashboard" replace />} />
                     <Route path="dashboard" element={<MentorDashboard />} />
-                    <Route path="review-logbook" element={<ReviewLogbook />} />
+                    <Route path="profile" element={<ProfilePage />} />
+                    <Route path="review-logbook" element={<ReviewLogbookTable />} />
                     <Route path="progress-intern" element={<ProgressIntern />} />
                     <Route path="intern-saya" element={<InternSaya />} />
-                    <Route path="buat-proyek" element={<BuatProyek />} />
-                    <Route path="kelola-proyek" element={<KelolaProyek />} />
+                    <Route path="my-projects" element={<MentorMyProjects />} />
+                    <Route path="projects" element={<MentorMyProjects />} />
                     
                     {/* Legacy route redirects */}
-                    <Route path="project-saya" element={<Navigate to="/mentor/buat-proyek" replace />} />
-                    <Route path="kelola-task" element={<Navigate to="/mentor/kelola-proyek" replace />} />
+                    <Route path="buat-proyek" element={<Navigate to="/mentor/my-projects" replace />} />
+                    <Route path="kelola-proyek" element={<Navigate to="/mentor/my-projects" replace />} />
+                    <Route path="project-saya" element={<Navigate to="/mentor/my-projects" replace />} />
+                    <Route path="kelola-task" element={<Navigate to="/mentor/my-projects" replace />} />
                     <Route path="intern-progress" element={<Navigate to="/mentor/progress-intern" replace />} />
                 </Route>
 
@@ -173,14 +166,18 @@ function App() {
                 }>
                     <Route index element={<Navigate to="/admin/dashboard" replace />} />
                     <Route path="dashboard" element={<AdminDashboard />} />
+                    <Route path="profile" element={<ProfilePage />} />
                     <Route path="kelola-user" element={<KelolaUser />} />
-                    <Route path="manage-users" element={<Navigate to="/admin/kelola-user" replace />} />
+                    <Route path="kelola-user" element={<Navigate to="/admin/kelola-user" replace />} />
                     <Route path="data-intern" element={<DataIntern />} />
                     <Route path="kelola-project" element={<KelolaProject />} />
+                    <Route path="projects" element={<KelolaProject />} />
+                    <Route path="manajemen-batch" element={<ManageBatch />} />
                     <Route path="manage-projects" element={<Navigate to="/admin/kelola-project" replace />} />
-                    <Route path="kelompok-intern" element={<KelompokIntern />} />
-                    <Route path="assign-partisipan" element={<Navigate to="/admin/kelompok-intern" replace />} />
-                    <Route path="assign-participants" element={<Navigate to="/admin/kelompok-intern" replace />} />
+                    <Route path="divisi-user" element={<DivisiUser />} />
+                    <Route path="kelompok-intern" element={<Navigate to="/admin/divisi-user" replace />} />
+                    <Route path="assign-partisipan" element={<Navigate to="/admin/divisi-user" replace />} />
+                    <Route path="assign-participants" element={<Navigate to="/admin/divisi-user" replace />} />
                     <Route path="monitoring" element={<Monitoring />} />
                     <Route path="all-logbooks" element={<Navigate to="/admin/monitoring" replace />} />
                     <Route path="reports" element={<Navigate to="/admin/monitoring" replace />} />
@@ -193,25 +190,22 @@ function App() {
                     </ProtectedRoute>
                 }>
                     <Route index element={<Navigate to="/super/dashboard" replace />} />
-                    <Route path="dashboard" element={<SuperDashboardEnhanced />} />
+                    <Route path="dashboard" element={<SuperDashboard />} />
                     
-                    {/* Full System Access */}
+                    {/* Full System Access - Read-only projects */}
                     <Route path="all-users" element={<AllUsers />} />
                     <Route path="all-projects" element={<AllProjects />} />
                     <Route path="all-logbooks" element={<AllLogbooks />} />
                     <Route path="all-reviews" element={<AllReviews />} />
-                    
-                    {/* System Management */}
-                    <Route path="audit-log" element={<AuditLog />} />
-                    <Route path="system-settings" element={<SystemSettings />} />
-                    <Route path="database" element={<DatabaseManagement />} />
-                    <Route path="role-management" element={<RoleManagement />} />
-                    
-                    {/* Monitoring & Analytics */}
-                    <Route path="system-health" element={<SystemHealth />} />
-                    <Route path="storage-analytics" element={<StorageAnalytics />} />
-                    <Route path="performance-metrics" element={<PerformanceMetrics />} />
+                    <Route path="projects" element={<ViewAllProjects />} />
                 </Route>
+
+                {/* Common Routes - Accessible by all authenticated users */}
+                <Route path="/projects/:id" element={
+                    <ProtectedRoute>
+                        <ProjectDetail />
+                    </ProtectedRoute>
+                } />
 
                 {/* Profile & Other Routes */}
                 <Route path="/profile" element={

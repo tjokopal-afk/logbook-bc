@@ -13,24 +13,94 @@ import {
   User, 
   Mail, 
   Building, 
-  GraduationCap, 
   Phone, 
   IdCard,
-  UserCheck,
   Save,
-  Loader2
+  Loader2,
+  Calendar,
+  Briefcase,
+  BookOpen,
+  Hash
 } from 'lucide-react';
 import { supabase } from '@/supabase';
-
-interface UserMetadata {
-  signature_url: string;
-}
+import { format } from 'date-fns';
+import { id as idLocale } from 'date-fns/locale';
 
 export function ProfileFormReadOnly() {
   const { profile } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState('');
+  const [divisiName, setDivisiName] = useState<string>('');
+  const [batchName, setBatchName] = useState<string>('');
+
+  // Debug: log profile data when it changes
+  useEffect(() => {
+    console.log('📋 Profile Data:', {
+      email: profile?.email,
+      full_name: profile?.full_name,
+      username: profile?.username,
+      phone: profile?.phone,
+      company: profile?.company,
+      division: profile?.division,
+      start_date: profile?.start_date,
+      end_date: profile?.end_date,
+      avatar_url: profile?.avatar_url,
+      role: profile?.role,
+    });
+  }, [profile]);
+
+  // Fetch divisi name from departments table
+  useEffect(() => {
+    const fetchDivisiName = async () => {
+      if (!profile?.divisi) {
+        setDivisiName('');
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('departments')
+          .select('divisi')
+          .eq('id', profile.divisi)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching divisi:', error);
+          return;
+        }
+        setDivisiName(data?.divisi || '');
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    };
+    fetchDivisiName();
+  }, [profile?.divisi]);
+
+  // Fetch batch name from batches table
+  useEffect(() => {
+    const fetchBatchName = async () => {
+      if (!profile?.batch) {
+        setBatchName('');
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('batches')
+          .select('batch_name')
+          .eq('id', profile.batch)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching batch:', error);
+          return;
+        }
+        setBatchName(data?.batch_name || '');
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    };
+    fetchBatchName();
+  }, [profile?.batch]);
 
   useEffect(() => {
     if (profile) {
@@ -112,7 +182,7 @@ export function ProfileFormReadOnly() {
               {profile.avatar_url ? (
                 <img
                   src={profile.avatar_url}
-                  alt={profile.full_name}
+                  alt={profile.full_name ? profile.full_name : profile.username}
                   className="w-full h-full rounded-full object-cover"
                 />
               ) : (
@@ -122,7 +192,7 @@ export function ProfileFormReadOnly() {
 
             {/* Name & Role */}
             <h2 className="mt-4 text-2xl font-bold text-gray-900">
-              {profile.full_name || 'No Name'}
+              {profile.full_name || profile.username || 'No Name'}
             </h2>
             <Badge className={`mt-2 ${roleBadge.className}`}>
               {roleBadge.label}
@@ -178,38 +248,25 @@ export function ProfileFormReadOnly() {
               </div>
             </div>
 
-            {/* Affiliation/University */}
+            {/* Username */}
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Building className="w-4 h-4 text-green-600" />
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <IdCard className="w-4 h-4 text-indigo-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 mb-1">
-                  {profile.role === 'intern' ? 'Universitas' : 'Institusi'}
-                </p>
-                <p className="font-medium text-gray-900">{profile.affiliation || '-'}</p>
+                <p className="text-xs text-gray-500 mb-1">Username</p>
+                <p className="font-medium text-gray-900">@{profile.username || '-'}</p>
               </div>
             </div>
 
-            {/* NIM */}
-            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <IdCard className="w-4 h-4 text-red-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 mb-1">NIM</p>
-                <p className="font-medium text-gray-900">{(profile as any).nim || '-'}</p>
-              </div>
-            </div>
-
-            {/* WhatsApp */}
+            {/* Phone */}
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
               <div className="p-2 bg-yellow-100 rounded-lg">
                 <Phone className="w-4 h-4 text-yellow-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 mb-1">WhatsApp</p>
-                <p className="font-medium text-gray-900">{(profile as any).phone || '-'}</p>
+                <p className="text-xs text-gray-500 mb-1">Nomor Telepon</p>
+                <p className="font-medium text-gray-900">{profile.phone || '-'}</p>
               </div>
             </div>
           </div>
@@ -220,53 +277,116 @@ export function ProfileFormReadOnly() {
       <Card>
         <CardContent className="pt-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-green-600" />
-            Informasi Magang
+            <Briefcase className="w-5 h-5 text-green-600" />
+            {profile.role === 'intern' ? 'Informasi Magang' : 'Informasi Karyawan'}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Department */}
+            {/* Affiliation (Company) */}
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <GraduationCap className="w-4 h-4 text-green-600" />
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Building className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 mb-1">Perusahaan</p>
+                <p className="font-medium text-gray-900">{profile.affiliation || '-'}</p>
+              </div>
+            </div>
+
+            {/* Jurusan (Major) */}
+            { profile.role === 'intern' && (
+            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <BookOpen className="w-4 h-4 text-blue-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-500 mb-1">Jurusan</p>
-                <p className="font-medium text-gray-900">{(profile as any).department || '-'}</p>
+                <p className="font-medium text-gray-900">{profile.jurusan || '-'}</p>
+              </div>
+            </div>
+            )}
+
+            {/* Division */}
+            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Briefcase className="w-4 h-4 text-green-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 mb-1">Divisi</p>
+                <p className="font-medium text-gray-900">{divisiName || '-'}</p>
               </div>
             </div>
 
-            {/* Batch */}
+            {/* Batch/Angkatan */}
+            { profile.role === 'intern' && (
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
               <div className="p-2 bg-indigo-100 rounded-lg">
-                <UserCheck className="w-4 h-4 text-indigo-600" />
+                <Hash className="w-4 h-4 text-indigo-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 mb-1">Batch</p>
-                <p className="font-medium text-gray-900">{(profile as any).batch || '-'}</p>
+                <p className="text-xs text-gray-500 mb-1">Angkatan</p>
+                <p className="font-medium text-gray-900">{batchName || '-'}</p>
               </div>
             </div>
+            )}
 
-            {/* Mentor Name */}
+            {/* Nomor Induk (Student ID) */}
+            { profile.role === 'intern' ? (
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <UserCheck className="w-4 h-4 text-blue-600" />
+              <div className="p-2 bg-teal-100 rounded-lg">
+                <IdCard className="w-4 h-4 text-teal-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 mb-1">Nama Mentor</p>
-                <p className="font-medium text-gray-900">-</p>
+                <p className="text-xs text-gray-500 mb-1">Nomor Induk Mahasiswa</p>
+                <p className="font-medium text-gray-900">{profile.nomor_induk || '-'}</p>
               </div>
             </div>
+            ) : (
+              <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="p-2 bg-teal-100 rounded-lg">
+                <IdCard className="w-4 h-4 text-teal-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 mb-1">Nomor Induk Karyawan</p>
+                <p className="font-medium text-gray-900">{profile.nomor_induk || '-'}</p>
+              </div>
+            </div>
+            )}
 
-            {/* Mentor ID */}
+            {/* Start Date */}
+            { profile.role === 'intern' && (
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
               <div className="p-2 bg-purple-100 rounded-lg">
-                <IdCard className="w-4 h-4 text-purple-600" />
+                <Calendar className="w-4 h-4 text-purple-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 mb-1">ID Mentor / NIK</p>
-                <p className="font-medium text-gray-900">-</p>
+                <p className="text-xs text-gray-500 mb-1">Mulai Magang</p>
+                <p className="font-medium text-gray-900">
+                  {profile.start_date 
+                    ? format(new Date(profile.start_date), 'd MMMM yyyy', { locale: idLocale })
+                    : '-'
+                  }
+                </p>
               </div>
             </div>
+            )}
+
+            {/* End Date */}
+            { profile.role === 'intern' && (
+            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Calendar className="w-4 h-4 text-orange-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 mb-1">Selesai Magang</p>
+                <p className="font-medium text-gray-900">
+                  {profile.end_date 
+                    ? format(new Date(profile.end_date), 'd MMMM yyyy', { locale: idLocale })
+                    : '-'
+                  }
+                </p>
+              </div>
+            </div>
+            )}
           </div>
         </CardContent>
       </Card>

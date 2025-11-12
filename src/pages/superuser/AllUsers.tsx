@@ -11,9 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Users, 
   Search, 
-  Plus, 
-  Edit, 
-  Trash2, 
   Eye,
   Download,
   Loader2,
@@ -200,10 +197,6 @@ export default function AllUsers() {
             <Download className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
-          <Button onClick={() => setShowCreateDialog(true)} className="bg-red-600 hover:bg-red-700">
-            <Plus className="w-4 h-4 mr-2" />
-            Create User
-          </Button>
         </div>
       </div>
 
@@ -383,27 +376,6 @@ export default function AllUsers() {
                         }}
                       >
                         <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setShowEditDialog(true);
-                        }}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setShowDeleteDialog(true);
-                        }}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>

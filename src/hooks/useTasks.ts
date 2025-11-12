@@ -12,7 +12,7 @@ export interface Task {
   title: string;
   description?: string;
   assigned_to?: string;
-  percent_of_project: number;
+  project_weight: number;
   deadline?: string;
   created_at: string;
   updated_at: string;
@@ -96,7 +96,7 @@ export const useTasks = () => {
     title: string;
     description?: string;
     assigned_to?: string;
-    percent_of_project: number;
+    project_weight: number;
     deadline?: string;
   }) => {
     if (!user || !['mentor', 'admin', 'superuser'].includes(profile?.role || '')) {
@@ -165,7 +165,7 @@ export const useTasks = () => {
     try {
       const { data, error: updateError } = await supabase
         .from('tasks')
-        .update({ percent_of_project: percentOfProject })
+        .update({ project_weight: percentOfProject })
         .eq('id', taskId)
         .eq('assigned_to', user.id) // Ensure user is assigned to this task
         .select()
