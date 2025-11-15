@@ -465,9 +465,8 @@ export default function ProjectDetail() {
     try {
       const { error } = await supabase
         .from('projects')
-        .update({ 
+        .update({
           status: 'completed',
-          updated_at: new Date().toISOString(),
         })
         .eq('id', project.id);
 
@@ -1399,19 +1398,23 @@ export default function ProjectDetail() {
               <CheckCircle2 className="w-5 h-5 text-green-600" />
               Complete Project
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to mark this project as completed? 
-              <div className="mt-3 p-3 bg-blue-50 border-l-4 border-blue-500 rounded">
-                <p className="text-sm text-gray-700">
-                  <strong>Project:</strong> {project.name}
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Are you sure you want to mark this project as completed?
                 </p>
-                <p className="text-sm text-gray-700 mt-1">
-                  <strong>Progress:</strong> {completionRate}% ({completedTasks} of {tasks.length} tasks completed)
+                <div className="mt-3 p-3 bg-blue-50 border-l-4 border-blue-500 rounded">
+                  <p className="text-sm text-gray-700">
+                    <strong>Project:</strong> {project.name}
+                  </p>
+                  <p className="text-sm text-gray-700 mt-1">
+                    <strong>Progress:</strong> {completionRate}% ({completedTasks} of {tasks.length} tasks completed)
+                  </p>
+                </div>
+                <p className="mt-3 text-sm text-gray-600">
+                  This will change the project status to "Completed". You can still access and view the project details.
                 </p>
               </div>
-              <p className="mt-3 text-sm text-gray-600">
-                This will change the project status to "Completed". You can still access and view the project details.
-              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

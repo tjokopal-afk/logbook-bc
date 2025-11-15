@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Users, Clock, Briefcase, Eye, Target, TrendingUp, FileText } from 'lucide-react';
+import { Calendar, Users, Clock, Briefcase, Eye, Target, FileText } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { format, differenceInDays } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -62,7 +62,7 @@ export default function MyProjects() {
         return;
       }
 
-      const projectIds = participantsData.map(p => p.project_id);
+      const projectIds = participantsData.map((p: { project_id: string }) => p.project_id);
 
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
@@ -73,7 +73,7 @@ export default function MyProjects() {
       if (projectsError) throw projectsError;
 
       const projectsWithStats = await Promise.all(
-        (projectsData || []).map(async (project) => {
+        (projectsData || []).map(async (project: Project) => {
           const { count: myTaskCount } = await supabase
             .from('tasks')
             .select('*', { count: 'exact', head: true })
@@ -97,7 +97,7 @@ export default function MyProjects() {
 
           // Use shared service to calculate overall progress and task breakdown
           const progress = await calculateProjectProgress(project.id).catch(() => 0);
-          const progressDetails = await getProjectProgressDetails(project.id).catch(() => ({ total: 0, completed: 0, pending: 0 }));
+          const progressDetails = await getProjectProgressDetails(project.id).catch(() => ({ totalTasks: 0, completedTasks: 0, pendingTasks: 0 } as any));
 
           return {
             ...project,
@@ -106,7 +106,11 @@ export default function MyProjects() {
             participantCount: participantCount || 0,
             document_count: documentCount || 0,
             progress: progress,
-            task_stats: progressDetails,
+            task_stats: {
+              total: (progressDetails as any).totalTasks ?? 0,
+              completed: (progressDetails as any).completedTasks ?? 0,
+              pending: (progressDetails as any).pendingTasks ?? 0,
+            },
             completion_rate: progress,
           } as ProjectWithStats;
         })
@@ -183,7 +187,7 @@ export default function MyProjects() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => navigate(`/projects/${project.id}`)}
+                        onClick={() => navigate(`/intern/projects/${project.id}`)}
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View Details

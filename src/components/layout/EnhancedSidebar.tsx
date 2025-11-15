@@ -12,6 +12,7 @@ import {
   LogOut,
   User,
   Home,
+  Calendar,
   Briefcase,
   GraduationCap,
   Users,
@@ -38,6 +39,7 @@ import { ROLE_MENUS, ROLES } from '@/utils/roleConfig';
 
 const ICONS = {
   Home,
+  Calendar,
   BookOpen,
   Briefcase,
   CheckSquare,

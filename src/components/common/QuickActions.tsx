@@ -116,7 +116,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ role }) => {
             icon: <Plus className="w-5 h-5" />,
             label: 'New Entry',
             description: 'Add logbook entry',
-            path: '/intern/aktivitas-saya',
+            path: '/intern/laporan',
             colorClass: 'bg-green-500 hover:bg-green-600',
           },
           {

@@ -13,11 +13,10 @@ import { getDefaultPath } from '@/utils/roleConfig';
 
 // Intern Pages
 import InternDashboard from '@/pages/intern/InternDashboard';
-import MyActivities from '@/pages/intern/MyActivities';
 import MyLogbook from '@/pages/intern/MyLogbook';
 import MyProjects from '@/pages/intern/MyProjects';
 import StatusDanReview from '@/pages/intern/StatusDanReview';
-import ProgressSaya from '@/pages/intern/ProgressSaya';
+import Timeline from '@/pages/intern/Timeline';
 
 // Mentor Pages
 import MentorDashboard from '@/pages/mentor/MentorDashboard';
@@ -118,21 +117,22 @@ function App() {
                     <Route index element={<Navigate to="/intern/dashboard" replace />} />
                     <Route path="dashboard" element={<InternDashboard />} />
                     <Route path="profile" element={<ProfilePage />} />
-                    <Route path="aktivitas-saya" element={<MyActivities />} />
                     <Route path="laporan" element={<MyLogbook />} />
                     <Route path="status-dan-review" element={<StatusDanReview />} />
                     <Route path="project-saya" element={<MyProjects />} />
-                    <Route path="progress-saya" element={<ProgressSaya />} />
+                    <Route path="timeline" element={<Timeline />} />
+                    <Route path="projects/:id" element={<ProjectDetail />} />
                     
                     {/* Legacy route redirects for backward compatibility */}
-                    <Route path="aktivitas" element={<Navigate to="/intern/aktivitas-saya" replace />} />
+                    <Route path="aktivitas" element={<Navigate to="/intern/laporan" replace />} />
                     <Route path="my-logbook" element={<Navigate to="/intern/laporan" replace />} />
                     <Route path="my-projects" element={<Navigate to="/intern/project-saya" replace />} />
                     <Route path="status-task" element={<Navigate to="/intern/status-dan-review" replace />} />
                     <Route path="my-tasks" element={<Navigate to="/intern/status-dan-review" replace />} />
                     <Route path="review-rating" element={<Navigate to="/intern/status-dan-review" replace />} />
                     <Route path="my-reviews" element={<Navigate to="/intern/status-dan-review" replace />} />
-                    <Route path="my-progress" element={<Navigate to="/intern/progress-saya" replace />} />
+                    <Route path="progress-saya" element={<Navigate to="/intern/timeline" replace />} />
+                    <Route path="my-progress" element={<Navigate to="/intern/timeline" replace />} />
                 </Route>
 
                 {/* MENTOR Routes */}
@@ -149,6 +149,7 @@ function App() {
                     <Route path="intern-saya" element={<InternSaya />} />
                     <Route path="my-projects" element={<MentorMyProjects />} />
                     <Route path="projects" element={<MentorMyProjects />} />
+                    <Route path="projects/:id" element={<ProjectDetail />} />
                     
                     {/* Legacy route redirects */}
                     <Route path="buat-proyek" element={<Navigate to="/mentor/my-projects" replace />} />

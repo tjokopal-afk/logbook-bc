@@ -128,7 +128,6 @@ export const ROLE_MENUS = {
       section: 'Utama',
       items: [
         { path: '/intern/dashboard', label: 'Dashboard', icon: 'Home' },
-        { path: '/intern/aktivitas-saya', label: 'Aktivitas Saya', icon: 'ClipboardList' },
         { path: '/intern/laporan', label: 'Logbook', icon: 'FileText' },
       ]
     },
@@ -142,7 +141,7 @@ export const ROLE_MENUS = {
     {
       section: 'Performa',
       items: [
-        { path: '/intern/progress-saya', label: 'Progress Saya', icon: 'TrendingUp' },
+        { path: '/intern/timeline', label: 'Timeline', icon: 'Calendar' },
       ]
     }
   ],
@@ -159,7 +158,7 @@ export const ROLE_MENUS = {
       section: 'Pembimbingan',
       items: [
         { path: '/mentor/review-logbook', label: 'Review Logbook', icon: 'FileCheck', badge: 'pending' },
-        { path: '/mentor/progress-intern', label: 'Progress Intern', icon: 'TrendingUp' },
+        { path: '/mentor/progress-intern', label: 'Penilaian', icon: 'TrendingUp' },
         { path: '/mentor/intern-saya', label: 'Intern Saya', icon: 'Users' },
       ]
     },

@@ -208,7 +208,7 @@ export default function MyProjects() {
   };
 
   const handleViewProject = (projectId: string) => {
-    navigate(`/projects/${projectId}`);
+    navigate(`/mentor/projects/${projectId}`);
   };
 
   if (loading) {

@@ -112,7 +112,7 @@ export function EditInternDialog({ isOpen, intern, onClose, onSuccess }: EditInt
           affiliation: formData.affiliation || null,
           jurusan: formData.jurusan || null,
           divisi: formData.divisi || null,
-          nomor_induk: formData.nomor_induk || null,
+          nomor_induk: formData.nomor_induk ? parseInt(formData.nomor_induk, 10) : null,
           batch: formData.batch || null,
           start_date: formData.start_date || null,
           end_date: formData.end_date || null,
@@ -169,7 +169,7 @@ export function EditInternDialog({ isOpen, intern, onClose, onSuccess }: EditInt
             <Input
               id="nomor_induk"
               type="text"
-              value={formData.nomor_induk}
+              value={formData.nomor_induk? formData.nomor_induk : ''}
               onChange={(e) => setFormData({ ...formData, nomor_induk: e.target.value })}
               placeholder={`e.g., ${getCurrentYear() - 2003}1234567890`}
             />

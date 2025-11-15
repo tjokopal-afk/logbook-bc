@@ -4,6 +4,7 @@
 // =========================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/supabase';
 import type { Profile } from '@/lib/api/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,11 +59,14 @@ interface StatCardProps {
     isPositive: boolean;
   };
   colorClass?: string;
+  onClick?: () => void;
 }
 
 interface DashboardStatsProps {
   userId?: string;
   role?: 'admin' | 'mentor' | 'intern' | 'superuser';
+  mode?: 'default' | 'intern';
+  linkMap?: Record<string, string>;
 }
 
 // =========================================
@@ -76,9 +80,10 @@ const StatCard: React.FC<StatCardProps> = ({
   description,
   trend,
   colorClass = 'bg-blue-500',
+  onClick,
 }) => {
   return (
-    <Card>
+    <Card onClick={onClick} className={onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : undefined}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <div className={`${colorClass} p-2 rounded-lg text-white`}>{icon}</div>
@@ -112,7 +117,7 @@ const StatCard: React.FC<StatCardProps> = ({
 // MAIN COMPONENT
 // =========================================
 
-const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
+const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'default', linkMap }) => {
   const [stats, setStats] = useState<DashboardStats>({
     totalProjects: 0,
     activeProjects: 0,
@@ -125,6 +130,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
   });
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
+  const navigate = useNavigate();
 
   // =========================================
   // FETCH CURRENT USER
@@ -319,9 +325,8 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Universal Stats */}
+  const renderUniversalAndTaskStats = () => (
+    <>
       <div>
         <h3 className="text-lg font-semibold mb-4">Ringkasan Proyek</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -349,7 +354,6 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
         </div>
       </div>
 
-      {/* Task Stats */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Ringkasan Tugas</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -359,6 +363,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
             icon={<ListTodo className="w-4 h-4" />}
             description="Semua tugas"
             colorClass="bg-slate-500"
+            onClick={linkMap?.totalTasks ? (() => navigate(linkMap.totalTasks)) : undefined}
           />
           <StatCard
             title="Pending"
@@ -366,6 +371,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
             icon={<AlertTriangle className="w-4 h-4" />}
             description="Belum dikerjakan"
             colorClass="bg-yellow-500"
+            onClick={linkMap?.pendingTasks ? (() => navigate(linkMap.pendingTasks)) : undefined}
           />
           <StatCard
             title="Direview"
@@ -373,6 +379,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
             icon={<Clock className="w-4 h-4" />}
             description="Menunggu review"
             colorClass="bg-blue-500"
+            onClick={linkMap?.submittedTasks ? (() => navigate(linkMap.submittedTasks)) : undefined}
           />
           <StatCard
             title="Disetujui"
@@ -380,9 +387,16 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
             icon={<CheckCircle2 className="w-4 h-4" />}
             description="Tugas selesai"
             colorClass="bg-green-500"
+            onClick={linkMap?.approvedTasks ? (() => navigate(linkMap.approvedTasks)) : undefined}
           />
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <div className="space-y-6">
+      {mode !== 'intern' && renderUniversalAndTaskStats()}
 
       {/* Role-Specific Stats */}
       {effectiveRole === 'admin' || effectiveRole === 'superuser' ? (
@@ -442,6 +456,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
               icon={<ListTodo className="w-4 h-4" />}
               description="Total tugas yang diberikan"
               colorClass="bg-blue-500"
+              onClick={linkMap?.myTasks ? (() => navigate(linkMap.myTasks)) : undefined}
             />
             <StatCard
               title="Tugas Selesai"
@@ -449,18 +464,19 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
               icon={<Award className="w-4 h-4" />}
               description="Tugas yang telah diselesaikan"
               colorClass="bg-green-500"
+              onClick={linkMap?.myCompletedTasks ? (() => navigate(linkMap.myCompletedTasks)) : undefined}
             />
           </div>
         </div>
       ) : null}
 
       {/* Completion Rate */}
-      {stats.totalTasks > 0 && (
+      {(effectiveRole === 'intern' ? (stats.myTasks || 0) > 0 : stats.totalTasks > 0) && (
         <Card>
           <CardHeader>
             <CardTitle>Tingkat Penyelesaian Tugas</CardTitle>
             <CardDescription>
-              Persentase tugas yang telah diselesaikan
+              {effectiveRole === 'intern' ? 'Progress tugas pribadi' : 'Persentase tugas yang telah diselesaikan'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -468,26 +484,41 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Progress</span>
                 <span className="font-semibold">
-                  {Math.round((stats.approvedTasks / stats.totalTasks) * 100)}%
+                  {effectiveRole === 'intern'
+                    ? Math.round(((stats.myCompletedTasks || 0) / (stats.myTasks || 1)) * 100)
+                    : Math.round((stats.approvedTasks / stats.totalTasks) * 100)}%
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-4">
                 <div
                   className="bg-gradient-to-r from-green-400 to-green-600 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
                   style={{
-                    width: `${(stats.approvedTasks / stats.totalTasks) * 100}%`,
+                    width: `${effectiveRole === 'intern'
+                      ? (((stats.myCompletedTasks || 0) / (stats.myTasks || 1)) * 100)
+                      : ((stats.approvedTasks / stats.totalTasks) * 100)}%`,
                   }}
                 >
                   <span className="text-xs text-white font-semibold">
-                    {stats.approvedTasks}/{stats.totalTasks}
+                    {effectiveRole === 'intern'
+                      ? `${stats.myCompletedTasks || 0}/${stats.myTasks || 0}`
+                      : `${stats.approvedTasks}/${stats.totalTasks}`}
                   </span>
                 </div>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                <span>Pending: {stats.pendingTasks}</span>
-                <span>Direview: {stats.submittedTasks}</span>
-                <span>Selesai: {stats.approvedTasks}</span>
-                <span>Ditolak: {stats.rejectedTasks}</span>
+                {effectiveRole === 'intern' ? (
+                  <>
+                    <span>Total: {stats.myTasks || 0}</span>
+                    <span>Selesai: {stats.myCompletedTasks || 0}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Pending: {stats.pendingTasks}</span>
+                    <span>Direview: {stats.submittedTasks}</span>
+                    <span>Selesai: {stats.approvedTasks}</span>
+                    <span>Ditolak: {stats.rejectedTasks}</span>
+                  </>
+                )}
               </div>
             </div>
           </CardContent>
@@ -495,6 +526,6 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role }) => {
       )}
     </div>
   );
-};
+}
 
 export default DashboardStats;

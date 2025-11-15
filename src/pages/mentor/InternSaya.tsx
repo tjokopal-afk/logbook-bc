@@ -14,7 +14,6 @@ import {
   Search,
   Eye,
   Briefcase,
-  Download,
   Calendar,
   Building2,
   TrendingUp,
@@ -25,7 +24,6 @@ import { id as idLocale } from 'date-fns/locale';
 import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
 
-// Mock data - replace with real Supabase data
 interface Intern {
   id: string;
   name: string;
@@ -36,11 +34,9 @@ interface Intern {
   startDate: string;
   endDate: string;
   status: 'active' | 'completed';
-  progress: number;
   lastActivity: string;
   totalReports: number;
   totalHours: number;
-  avgRating: number;
 }
 
 export default function InternSaya() {
@@ -95,7 +91,7 @@ export default function InternSaya() {
         return;
       }
 
-      const projectIds = mentorProjects.map(p => p.project_id);
+      const projectIds = mentorProjects.map((p: { project_id: string }) => p.project_id);
 
       // Get all interns who are participants in these projects
       const { data: internParticipants, error: participantsError } = await supabase
@@ -117,7 +113,7 @@ export default function InternSaya() {
       if (participantsError) throw participantsError;
 
       // Get unique intern IDs
-      const internIds = [...new Set(internParticipants?.map(p => p.user_id) || [])];
+      const internIds = [...new Set((internParticipants as Array<{ user_id: string }> | null)?.map((p: { user_id: string }) => p.user_id) || [])];
 
       // Fetch intern profiles
       const { data: internProfiles, error: profilesError } = await supabase
@@ -130,9 +126,9 @@ export default function InternSaya() {
 
       // Build intern data with stats
       const internsData = await Promise.all(
-        (internProfiles || []).map(async (profile) => {
+        (internProfiles || []).map(async (profile: any) => {
           // Find intern's primary project (or first project)
-          const internProject = internParticipants?.find(p => p.user_id === profile.id);
+          const internProject = (internParticipants as Array<{ user_id: string; projects: { id: string; name: string; start_date: string; end_date: string; status: string } }> | null)?.find((p: { user_id: string }) => p.user_id === profile.id);
           const project = internProject?.projects as { id: string; name: string; start_date: string; end_date: string; status: string } | undefined;
 
           // Get logbook stats
@@ -141,34 +137,23 @@ export default function InternSaya() {
             .select('*', { count: 'exact', head: true })
             .eq('user_id', profile.id);
 
-          // Get total hours from logbook
+          // Get total hours from logbook using duration_minutes or derive from start/end
           const { data: logbookData } = await supabase
             .from('logbook_entries')
-            .select('hours')
+            .select('duration_minutes, start_time, end_time')
             .eq('user_id', profile.id);
 
-          const totalHours = logbookData?.reduce((sum, entry) => sum + (entry.hours || 0), 0) || 0;
-
-          // Get task stats for progress calculation
-          const { data: tasksData } = await supabase
-            .from('tasks')
-            .select('is_reviewed, is_rejected')
-            .eq('assigned_to', profile.id);
-
-          const totalTasks = tasksData?.length || 0;
-          const completedTasks = tasksData?.filter(t => t.is_reviewed && !t.is_rejected).length || 0;
-          const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-          // Get average rating from reviews
-          const { data: reviewsData } = await supabase
-            .from('logbook_reviews')
-            .select('rating')
-            .eq('intern_id', profile.id)
-            .not('rating', 'is', null);
-
-          const avgRating = reviewsData && reviewsData.length > 0
-            ? reviewsData.reduce((sum, r) => sum + (r.rating || 0), 0) / reviewsData.length
-            : 0;
+          const totalMinutes = (logbookData || []).reduce((sum: number, entry: any) => {
+            if (typeof entry.duration_minutes === 'number') return sum + entry.duration_minutes;
+            if (entry.start_time && entry.end_time) {
+              const start = new Date(entry.start_time);
+              const end = new Date(entry.end_time);
+              const diff = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60));
+              return sum + diff;
+            }
+            return sum;
+          }, 0);
+          const totalHours = Math.round((totalMinutes / 60) * 10) / 10; // 1 decimal
 
           // Get last activity
           const { data: lastActivityData } = await supabase
@@ -192,11 +177,9 @@ export default function InternSaya() {
             startDate: project?.start_date || new Date().toISOString(),
             endDate: project?.end_date || new Date().toISOString(),
             status: status as 'active' | 'completed',
-            progress: progress,
             lastActivity: lastActivityData?.created_at || new Date().toISOString(),
             totalReports: totalReports || 0,
             totalHours: totalHours,
-            avgRating: avgRating
           };
         })
       );
@@ -330,18 +313,20 @@ export default function InternSaya() {
               <Card key={intern.id} className="hover:shadow-lg transition-shadow flex flex-col">
                 <CardContent className="pt-6 flex flex-col flex-1">
                   {/* Header with Avatar */}
-                  <div className="flex flex-col items-center text-center mb-4">
-                    <Avatar className="w-20 h-20 mb-3">
+                  <div className="flex items-center justify-between mb-4">
+                    <Avatar className="w-20 h-20">
                       <AvatarImage src={intern.avatar} />
                       <AvatarFallback className="bg-blue-100 text-blue-700 text-2xl">
                         {intern.name.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
-                    <h3 className="text-lg font-semibold">{intern.name}</h3>
-                    <p className="text-sm text-gray-600">{intern.email}</p>
-                    <Badge className={`mt-2 ${intern.status === 'active' ? 'bg-green-600' : 'bg-gray-600'}`}>
-                      {intern.status === 'active' ? 'Active' : 'Completed'}
-                    </Badge>
+                    <div>
+                      <h3 className="text-lg font-bold">{intern.name}</h3>
+                      <p className="text-sm text-gray-600">{intern.email}</p>
+                      <Badge className={`mt-2 ${intern.status === 'active' ? 'bg-green-600' : 'bg-gray-600'}`}>
+                        {intern.status === 'active' ? 'Active' : 'Completed'}
+                      </Badge>
+                    </div>
                   </div>
 
                   {/* Info Section */}
@@ -371,18 +356,27 @@ export default function InternSaya() {
                       </div>
                     </div>
 
-                    {/* Progress Bar */}
+                    {/* Timeline Bar - Internship period */}
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-gray-500">Progress</span>
-                        <span className="text-xs font-semibold">{intern.progress}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${intern.progress}%` }}
-                        />
-                      </div>
+                      {(() => {
+                        const start = new Date(intern.startDate);
+                        const end = new Date(intern.endDate);
+                        const today = new Date();
+                        const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+                        const elapsedDays = Math.min(totalDays, Math.max(0, Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))));
+                        const pct = Math.max(0, Math.min(100, Math.round((elapsedDays / totalDays) * 100)));
+                        return (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-gray-500">Timeline Magang</span>
+                              <span className="text-xs font-semibold">{pct}% ({elapsedDays}/{totalDays} hari)</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Stats Grid */}
@@ -394,10 +388,6 @@ export default function InternSaya() {
                       <div className="bg-gray-50 p-2 rounded">
                         <p className="text-xs text-gray-500">Hours</p>
                         <p className="text-lg font-bold text-gray-900">{intern.totalHours}h</p>
-                      </div>
-                      <div className="bg-gray-50 p-2 rounded">
-                        <p className="text-xs text-gray-500">Rating</p>
-                        <p className="text-lg font-bold text-gray-900">⭐ {intern.avgRating.toFixed(1)}</p>
                       </div>
                       {intern.status === 'active' && (
                         <div className="bg-blue-50 p-2 rounded">
@@ -437,14 +427,6 @@ export default function InternSaya() {
                       >
                         <Briefcase className="w-4 h-4 mr-1" />
                         Project
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => alert('Export feature coming soon!')}
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        Export
                       </Button>
                     </div>
                   </div>
@@ -514,14 +496,25 @@ export default function InternSaya() {
                     <p className="text-sm text-gray-500">Last Activity</p>
                     <p className="font-medium">{format(new Date(selectedIntern.lastActivity), 'dd MMMM yyyy', { locale: idLocale })}</p>
                   </div>
+                  {/* Progress replaced by timeline */}
                   <div>
-                    <p className="text-sm text-gray-500">Progress</p>
-                    <p className="font-medium">{selectedIntern.progress}%</p>
+                    <p className="text-sm text-gray-500">Timeline</p>
+                    <p className="font-medium">
+                      {(() => {
+                        const start = new Date(selectedIntern.startDate);
+                        const end = new Date(selectedIntern.endDate);
+                        const today = new Date();
+                        const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+                        const elapsedDays = Math.min(totalDays, Math.max(0, Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))));
+                        const pct = Math.max(0, Math.min(100, Math.round((elapsedDays / totalDays) * 100)));
+                        return `${pct}% (${elapsedDays}/${totalDays} hari)`;
+                      })()}
+                    </p>
                   </div>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="bg-blue-50 p-4 rounded-lg text-center">
                     <p className="text-sm text-gray-600">Total Reports</p>
                     <p className="text-2xl font-bold text-blue-600">{selectedIntern.totalReports}</p>
@@ -529,10 +522,6 @@ export default function InternSaya() {
                   <div className="bg-green-50 p-4 rounded-lg text-center">
                     <p className="text-sm text-gray-600">Total Hours</p>
                     <p className="text-2xl font-bold text-green-600">{selectedIntern.totalHours}h</p>
-                  </div>
-                  <div className="bg-yellow-50 p-4 rounded-lg text-center">
-                    <p className="text-sm text-gray-600">Avg Rating</p>
-                    <p className="text-2xl font-bold text-yellow-600">⭐ {selectedIntern.avgRating.toFixed(1)}</p>
                   </div>
                 </div>
 
@@ -563,7 +552,7 @@ export default function InternSaya() {
                     }}
                   >
                     <TrendingUp className="w-4 h-4 mr-2" />
-                    Lihat Progress
+                    Penilaian
                   </Button>
                 </div>
               </div>

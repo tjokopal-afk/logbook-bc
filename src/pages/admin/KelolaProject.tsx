@@ -79,7 +79,7 @@ export default function KelolaProject() {
 
       // Fetch additional data for each project
       const projectsWithData = await Promise.all(
-        (projectsData || []).map(async (project) => {
+        (projectsData || []).map(async (project: Project) => {
           // Get creator info
           const { data: creatorData } = await supabase
             .from('profiles')
@@ -171,16 +171,7 @@ export default function KelolaProject() {
     return badges[status as keyof typeof badges] || badges.active;
   };
 
-  const getStats = () => {
-    return {
-      total: projects.length,
-      active: projects.filter((p) => p.status === 'active').length,
-      completed: projects.filter((p) => p.status === 'completed').length,
-      upcoming: projects.filter((p) => p.status === 'upcoming').length,
-    };
-  };
-
-  const stats = getStats();
+  
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
@@ -201,33 +192,7 @@ export default function KelolaProject() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-purple-500">
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-purple-600">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">Total Projects</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-            <p className="text-xs text-muted-foreground">Active</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-blue-600">{stats.completed}</div>
-            <p className="text-xs text-muted-foreground">Completed</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-yellow-600">{stats.upcoming}</div>
-            <p className="text-xs text-muted-foreground">Upcoming</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Stats Cards removed; shown on Admin Dashboard instead */}
 
       {/* Filters */}
       <Card>

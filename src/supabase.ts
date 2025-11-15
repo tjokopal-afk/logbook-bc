@@ -13,27 +13,46 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.log('✅ Supabase client initialized:', supabaseUrl.substring(0, 30) + '...');
 }
 
+// Ensure singletons across HMR to avoid multiple GoTrueClient instances
+const globalAny = globalThis as unknown as { __supabase?: any; __supabaseAdmin?: any };
+
+function createRegularClient() {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storage: sessionStorage,
+      storageKey: 'logbook-auth',
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
+}
+
 // Regular client for normal users (with RLS)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: sessionStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+export const supabase = globalAny.__supabase ?? createRegularClient();
+if (!globalAny.__supabase) {
+  globalAny.__supabase = supabase;
+}
 
 // Admin client with service role key (bypasses RLS)
 // ⚠️ WARNING: This should ONLY be used server-side or for admin operations
 // Never expose the service role key in production frontend code
-export const supabaseAdmin = supabaseServiceRoleKey 
-  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
+function createAdminClient() {
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+export const supabaseAdmin = supabaseServiceRoleKey
+  ? (globalAny.__supabaseAdmin ?? createAdminClient())
   : supabase; // Fallback to regular client if service key not configured
+
+if (supabaseServiceRoleKey && !globalAny.__supabaseAdmin) {
+  globalAny.__supabaseAdmin = supabaseAdmin;
+}
 
 /**
  * Get the appropriate Supabase client based on user role.

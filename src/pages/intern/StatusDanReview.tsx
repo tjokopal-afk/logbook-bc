@@ -15,11 +15,14 @@ import {
   CheckCircle2,
   AlertCircle,
   Star,
-  MessageSquare,
-  Eye
+  MessageSquare
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { supabase } from '@/supabase';
+import { useAuth } from '@/context/AuthContext';
+import { resubmitWeeklyLog } from '@/services/logbookReviewService';
+import { updateEntry } from '@/services/logbookService';
 
 // Mock data - replace with real Supabase data
 interface Report {
@@ -35,16 +38,22 @@ interface Report {
   reviewedAt?: string;
   completedActivities: string[];
   totalHours: number;
+  projectId?: string | null;
+  reviewerId?: string | null;
+  hasSubmitted?: boolean;
 }
 
 export default function StatusDanReview() {
   const [reports, setReports] = useState<Report[]>([]);
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'reviewed' | 'revision'>('all');
+  
   const [loading, setLoading] = useState(true);
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  
+  const { user, profile } = useAuth();
+  const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
+  const [weekEntries, setWeekEntries] = useState<Record<number, any[]>>({});
+  const [savingMap, setSavingMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadReports();
@@ -52,77 +61,145 @@ export default function StatusDanReview() {
 
   useEffect(() => {
     applyFilters();
-  }, [reports, searchQuery, statusFilter]);
+  }, [reports, searchQuery]);
 
   const loadReports = async () => {
-    setLoading(true);
-    // TODO: Replace with real Supabase query
-    const mockReports: Report[] = [
-      {
-        id: '1',
-        weekNumber: 12,
-        startDate: '2025-10-21',
-        endDate: '2025-10-27',
-        submittedAt: '2025-10-27T16:30:00',
-        status: 'reviewed',
-        rating: 5,
-        mentorComment: 'Excellent work! Your implementation of the login feature is very clean and well-documented. Keep up the great work!',
-        mentorName: 'John Smith',
-        reviewedAt: '2025-10-28T09:15:00',
-        completedActivities: ['Implementasi Fitur Login', 'Testing & Bug Fixing'],
-        totalHours: 42
-      },
-      {
-        id: '2',
-        weekNumber: 11,
-        startDate: '2025-10-14',
-        endDate: '2025-10-20',
-        submittedAt: '2025-10-20T17:00:00',
-        status: 'reviewed',
-        rating: 4,
-        mentorComment: 'Good progress on the API integration. However, please add more error handling for edge cases.',
-        mentorName: 'John Smith',
-        reviewedAt: '2025-10-21T10:30:00',
-        completedActivities: ['Integrasi API Backend'],
-        totalHours: 40
-      },
-      {
-        id: '3',
-        weekNumber: 13,
-        startDate: '2025-10-28',
-        endDate: '2025-11-03',
-        submittedAt: '2025-10-30T14:20:00',
-        status: 'pending',
-        completedActivities: ['Code Review dengan Mentor'],
-        totalHours: 35
-      },
-      {
-        id: '4',
-        weekNumber: 10,
-        startDate: '2025-10-07',
-        endDate: '2025-10-13',
-        submittedAt: '2025-10-13T16:45:00',
-        status: 'revision',
-        rating: 2,
-        mentorComment: 'Please revise your code. The implementation needs improvement in terms of code structure and best practices. Schedule a meeting with me to discuss.',
-        mentorName: 'John Smith',
-        reviewedAt: '2025-10-14T11:00:00',
-        completedActivities: ['Setup Development Environment'],
-        totalHours: 38
+    try {
+      setLoading(true);
+      if (!user?.id) {
+        setReports([]);
+        setLoading(false);
+        return;
       }
-    ];
+      const { data: entries, error } = await supabase
+        .from('logbook_entries')
+        .select('*')
+        .eq('user_id', user.id)
+        .like('category', 'weekly_%')
+        .order('updated_at', { ascending: false });
+      if (error) {
+        setReports([]);
+        setLoading(false);
+        return;
+      }
+      const groups = new Map<number, any[]>();
+      (entries || []).forEach((e: any) => {
+        const m = e.category?.match(/weekly_(\d+)_/);
+        const wn = m ? parseInt(m[1]) : 0;
+        if (!wn) return;
+        if (!groups.has(wn)) groups.set(wn, []);
+        groups.get(wn)!.push(e);
+      });
+      const weekReports: Report[] = [];
+      for (const [weekNumber, list] of groups.entries()) {
+        const hasApproved = list.some((e: any) => (e.category || '').includes('approved'));
+        const hasRejected = list.some((e: any) => (e.category || '').includes('rejected'));
+        const hasSubmitted = list.some((e: any) => (e.category || '').includes('submitted'));
+        const includeWeek = hasApproved || hasRejected || hasSubmitted;
+        if (!includeWeek) {
+          continue;
+        }
+        const status: Report['status'] = hasApproved ? 'reviewed' : hasRejected ? 'revision' : 'pending';
+        const submittedAt = list.map((e: any) => e.submitted_at || e.created_at).sort().pop() || list[0].created_at;
+        const totalHours = list.reduce((sum: number, e: any) => sum + (e.duration_minutes || 0), 0) / 60;
+        const contents = Array.from(new Set(list.map((e: any) => e.content).filter(Boolean))).slice(0, 3);
+        let startDate = '';
+        let endDate = '';
+        if (profile?.start_date) {
+          const base = new Date(profile.start_date);
+          const start = new Date(base);
+          start.setDate(start.getDate() + (weekNumber - 1) * 7);
+          const end = new Date(base);
+          end.setDate(end.getDate() + (weekNumber - 1) * 7 + 6);
+          startDate = start.toISOString().slice(0, 10);
+          endDate = end.toISOString().slice(0, 10);
+        } else {
+          const dates = list.map((e: any) => e.entry_date).sort();
+          startDate = dates[0];
+          endDate = dates[dates.length - 1];
+        }
+        let mentorComment: string | undefined;
+        let mentorName: string | undefined;
+        let reviewedAt: string | undefined;
+        let reviewerId: string | undefined;
+        const ids = list.map((e: any) => e.id);
+        if (ids.length > 0) {
+          const { data: rev } = await supabase
+            .from('reviews')
+            .select('comment, reviewer_id, created_at, reviewer:profiles!reviews_reviewer_id_fkey(full_name)')
+            .in('entry_id', ids)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          if (rev && rev.length > 0) {
+            mentorComment = (rev[0] as any).comment || undefined;
+            mentorName = (rev[0] as any).reviewer?.full_name || undefined;
+            reviewedAt = (rev[0] as any).created_at || undefined;
+            reviewerId = (rev[0] as any).reviewer_id || undefined;
+          }
+        }
+        const projectId = list[0]?.project_id ?? null;
+        weekReports.push({
+          id: String(weekNumber),
+          weekNumber,
+          startDate,
+          endDate,
+          submittedAt,
+          status,
+          mentorComment,
+          mentorName,
+          reviewedAt,
+          completedActivities: contents,
+          totalHours: Math.round(totalHours),
+          projectId,
+          reviewerId: reviewerId || null,
+          hasSubmitted,
+        });
+      }
+      weekReports.sort((a, b) => a.weekNumber - b.weekNumber);
+      setReports(weekReports);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    setReports(mockReports);
-    setLoading(false);
+  const toHHMM = (ts?: string) => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  const offsetForDate = (d: Date) => {
+    const offsetMin = -d.getTimezoneOffset();
+    const sign = offsetMin >= 0 ? '+' : '-';
+    const abs = Math.abs(offsetMin);
+    const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+    const mm = String(abs % 60).padStart(2, '0');
+    return `${sign}${hh}:${mm}`;
+  };
+
+  const toISOWithOffset = (dateStr: string, hhmm: string) => {
+    const base = new Date(`${dateStr}T${hhmm}`);
+    const offset = offsetForDate(base);
+    return `${dateStr}T${hhmm}:00${offset}`;
+  };
+
+  const loadWeekEntries = async (weekNumber: number, projectId?: string | null) => {
+    if (!user?.id || !projectId) return;
+    const { data } = await supabase
+      .from('logbook_entries')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('project_id', projectId)
+      .like('category', `weekly_${weekNumber}_log_%`)
+      .order('entry_date', { ascending: true })
+      .order('start_time', { ascending: true });
+    setWeekEntries(prev => ({ ...prev, [weekNumber]: data || [] }));
   };
 
   const applyFilters = () => {
     let filtered = reports;
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(r => r.status === statusFilter);
-    }
 
     // Search filter
     if (searchQuery.trim()) {
@@ -170,9 +247,7 @@ export default function StatusDanReview() {
     ));
   };
 
-  const pendingCount = reports.filter(r => r.status === 'pending').length;
-  const reviewedCount = reports.filter(r => r.status === 'reviewed').length;
-  const revisionCount = reports.filter(r => r.status === 'revision').length;
+  
 
   if (loading) {
     return (
@@ -209,42 +284,12 @@ export default function StatusDanReview() {
                 className="pl-10"
               />
             </div>
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant={statusFilter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter('all')}
-              >
-                All ({reports.length})
-              </Button>
-              <Button
-                variant={statusFilter === 'pending' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter('pending')}
-              >
-                Pending ({pendingCount})
-              </Button>
-              <Button
-                variant={statusFilter === 'reviewed' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter('reviewed')}
-              >
-                Reviewed ({reviewedCount})
-              </Button>
-              <Button
-                variant={statusFilter === 'revision' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter('revision')}
-              >
-                Revision ({revisionCount})
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Reports List */}
-      <div className="space-y-4">
+      {/* Grouped Reports */}
+      <div className="space-y-8">
         {filteredReports.length === 0 ? (
           <Card>
             <CardContent className="py-12">
@@ -258,123 +303,389 @@ export default function StatusDanReview() {
             </CardContent>
           </Card>
         ) : (
-          filteredReports.map((report) => {
-            const ratingInfo = report.rating ? getRatingLabel(report.rating) : null;
-
-            return (
-              <Card key={report.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <CardTitle className="text-lg">Week {report.weekNumber}</CardTitle>
-                        {getStatusBadge(report.status)}
-                      </div>
-                      <CardDescription>
-                        {format(new Date(report.startDate), 'dd MMM', { locale: idLocale })} - 
-                        {format(new Date(report.endDate), 'dd MMM yyyy', { locale: idLocale })}
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  {/* Report Info */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-gray-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">Submitted</p>
-                        <p className="font-medium">
-                          {format(new Date(report.submittedAt), 'dd MMM yyyy, HH:mm', { locale: idLocale })}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-gray-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">Total Hours</p>
-                        <p className="font-medium">{report.totalHours} jam</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-gray-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">Activities</p>
-                        <p className="font-medium">{report.completedActivities.length} completed</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Completed Activities */}
-                  <div>
-                    <p className="text-sm font-semibold mb-2">Completed Activities:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {report.completedActivities.map((activity, index) => (
-                        <Badge key={index} variant="outline" className="bg-blue-50">
-                          {activity}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Review Section */}
-                  {report.status === 'reviewed' || report.status === 'revision' ? (
-                    <div className={`border-t pt-4 ${
-                      report.status === 'revision' ? 'bg-red-50 -mx-6 px-6 -mb-6 pb-6' : ''
-                    }`}>
-                      <div className="flex items-center gap-2 mb-3">
-                        <MessageSquare className="w-4 h-4 text-blue-600" />
-                        <h4 className="font-semibold">Mentor Review</h4>
-                      </div>
-
-                      {/* Rating */}
-                      {report.rating && (
-                        <div className="mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="flex gap-1">
-                              {renderStars(report.rating)}
+          <>
+            {/* Submitted */}
+            <div className="space-y-3">
+              <h2 className="text-xl font-bold">Submitted</h2>
+              {filteredReports.filter(r => r.status === 'pending').length === 0 ? (
+                <Card><CardContent className="py-6 text-sm text-gray-500">Belum ada yang Submitted</CardContent></Card>
+              ) : (
+                filteredReports.filter(r => r.status === 'pending').map((report) => {
+                  const ratingInfo = report.rating ? getRatingLabel(report.rating) : null;
+                  return (
+                    <Card key={report.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                Week {report.weekNumber}
+                                {report.hasSubmitted && (
+                                  <span className="inline-block w-2 h-2 rounded-full bg-green-500" title="Submitted" />
+                                )}
+                              </CardTitle>
+                              {getStatusBadge(report.status)}
                             </div>
-                            <span className="text-2xl font-bold">{report.rating.toFixed(1)}</span>
-                            {ratingInfo && (
-                              <Badge variant="outline" className={ratingInfo.color}>
-                                {ratingInfo.label}
-                              </Badge>
-                            )}
+                            <CardDescription>
+                              {format(new Date(report.startDate), 'dd MMM', { locale: idLocale })} - 
+                              {format(new Date(report.endDate), 'dd MMM yyyy', { locale: idLocale })}
+                            </CardDescription>
                           </div>
                         </div>
-                      )}
-
-                      {/* Comment */}
-                      {report.mentorComment && (
-                        <div className="bg-white border rounded-lg p-4">
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                            {report.mentorComment}
-                          </p>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <p className="text-xs text-gray-500">Submitted</p>
+                              <p className="font-medium">
+                                {format(new Date(report.submittedAt), 'dd MMM yyyy, HH:mm', { locale: idLocale })}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <p className="text-xs text-gray-500">Total Hours</p>
+                              <p className="font-medium">{report.totalHours} jam</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <p className="text-xs text-gray-500">Activities</p>
+                              <p className="font-medium">{report.completedActivities.length} completed</p>
+                            </div>
+                          </div>
                         </div>
-                      )}
+                        <div>
+                          <p className="text-sm font-semibold mb-2">Completed Activities:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {report.completedActivities.map((activity, index) => (
+                              <Badge key={index} variant="outline" className="bg-blue-50">
+                                {activity}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="border-t pt-4 bg-yellow-50 -mx-6 px-6 -mb-6 pb-6">
+                          <div className="flex items-center gap-2 text-yellow-700">
+                            <Clock className="w-4 h-4" />
+                            <p className="text-sm font-medium">Menunggu review dari mentor...</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
 
-                      {/* Review Info */}
-                      <div className="flex items-center gap-4 mt-3 text-xs text-gray-600">
-                        <span>Reviewed by: <span className="font-semibold">{report.mentorName}</span></span>
-                        <span>•</span>
-                        <span>
-                          {report.reviewedAt && format(new Date(report.reviewedAt), 'dd MMM yyyy, HH:mm', { locale: idLocale })}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="border-t pt-4 bg-yellow-50 -mx-6 px-6 -mb-6 pb-6">
-                      <div className="flex items-center gap-2 text-yellow-700">
-                        <Clock className="w-4 h-4" />
-                        <p className="text-sm font-medium">Menunggu review dari mentor...</p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })
+            {/* Approved */}
+            <div className="space-y-3">
+              <h2 className="text-xl font-bold">Approved</h2>
+              {filteredReports.filter(r => r.status === 'reviewed').length === 0 ? (
+                <Card><CardContent className="py-6 text-sm text-gray-500">Belum ada yang Approved</CardContent></Card>
+              ) : (
+                filteredReports.filter(r => r.status === 'reviewed').map((report) => {
+                  const ratingInfo = report.rating ? getRatingLabel(report.rating) : null;
+                  return (
+                    <Card key={report.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                Week {report.weekNumber}
+                                {report.hasSubmitted && (
+                                  <span className="inline-block w-2 h-2 rounded-full bg-green-500" title="Submitted" />
+                                )}
+                              </CardTitle>
+                              {getStatusBadge(report.status)}
+                            </div>
+                            <CardDescription>
+                              {format(new Date(report.startDate), 'dd MMM', { locale: idLocale })} - 
+                              {format(new Date(report.endDate), 'dd MMM yyyy', { locale: idLocale })}
+                            </CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <p className="text-xs text-gray-500">Submitted</p>
+                              <p className="font-medium">
+                                {format(new Date(report.submittedAt), 'dd MMM yyyy, HH:mm', { locale: idLocale })}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <p className="text-xs text-gray-500">Total Hours</p>
+                              <p className="font-medium">{report.totalHours} jam</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <p className="text-xs text-gray-500">Activities</p>
+                              <p className="font-medium">{report.completedActivities.length} completed</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold mb-2">Completed Activities:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {report.completedActivities.map((activity, index) => (
+                              <Badge key={index} variant="outline" className="bg-blue-50">
+                                {activity}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        {report.mentorComment && (
+                          <div className="border-t pt-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <MessageSquare className="w-4 h-4 text-blue-600" />
+                              <h4 className="font-semibold">Mentor Review</h4>
+                            </div>
+                            <div className="bg-white border rounded-lg p-4">
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                                {report.mentorComment}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4 mt-3 text-xs text-gray-600">
+                              <span>Reviewed by: <span className="font-semibold">{report.mentorName}</span></span>
+                              <span>•</span>
+                              <span>
+                                {report.reviewedAt && format(new Date(report.reviewedAt), 'dd MMM yyyy, HH:mm', { locale: idLocale })}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Rejected */}
+            <div className="space-y-3">
+              <h2 className="text-xl font-bold">Rejected</h2>
+              {filteredReports.filter(r => r.status === 'revision').length === 0 ? (
+                <Card><CardContent className="py-6 text-sm text-gray-500">Belum ada yang Rejected</CardContent></Card>
+              ) : (
+                filteredReports.filter(r => r.status === 'revision').map((report) => {
+                  const ratingInfo = report.rating ? getRatingLabel(report.rating) : null;
+                  return (
+                    <Card key={report.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                Week {report.weekNumber}
+                                {report.hasSubmitted && (
+                                  <span className="inline-block w-2 h-2 rounded-full bg-green-500" title="Submitted" />
+                                )}
+                              </CardTitle>
+                              {getStatusBadge(report.status)}
+                            </div>
+                            <CardDescription>
+                              {format(new Date(report.startDate), 'dd MMM', { locale: idLocale })} - 
+                              {format(new Date(report.endDate), 'dd MMM yyyy', { locale: idLocale })}
+                            </CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <p className="text-xs text-gray-500">Submitted</p>
+                              <p className="font-medium">
+                                {format(new Date(report.submittedAt), 'dd MMM yyyy, HH:mm', { locale: idLocale })}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <p className="text-xs text-gray-500">Total Hours</p>
+                              <p className="font-medium">{report.totalHours} jam</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <p className="text-xs text-gray-500">Activities</p>
+                              <p className="font-medium">{report.completedActivities.length} completed</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold mb-2">Completed Activities:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {report.completedActivities.map((activity, index) => (
+                              <Badge key={index} variant="outline" className="bg-blue-50">
+                                {activity}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Review & Edit/Resubmit */}
+                        <div className={`border-t pt-4 bg-red-50 -mx-6 px-6 -mb-6 pb-6`}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <MessageSquare className="w-4 h-4 text-blue-600" />
+                            <h4 className="font-semibold">Mentor Review</h4>
+                          </div>
+                          {report.mentorComment && (
+                            <div className="bg-white border rounded-lg p-4">
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                                {report.mentorComment}
+                              </p>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-4 mt-3 text-xs text-gray-600">
+                            <span>Reviewed by: <span className="font-semibold">{report.mentorName}</span></span>
+                            <span>•</span>
+                            <span>
+                              {report.reviewedAt && format(new Date(report.reviewedAt), 'dd MMM yyyy, HH:mm', { locale: idLocale })}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 mt-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                onClick={async () => {
+                                  const next = expandedWeek === report.weekNumber ? null : report.weekNumber;
+                                  setExpandedWeek(next);
+                                  if (next) {
+                                    await loadWeekEntries(report.weekNumber, report.projectId);
+                                  }
+                                }}
+                              >
+                                {expandedWeek === report.weekNumber ? 'Tutup Edit' : 'Edit Logbook'}
+                              </Button>
+                            </div>
+                            <Button
+                              onClick={async () => {
+                                if (!user?.id || !profile?.full_name) return;
+                                if (!report.projectId) return;
+                                const confirmRes = window.confirm(`Resubmit Week ${report.weekNumber} after revisions?`);
+                                if (!confirmRes) return;
+                                try {
+                                  await resubmitWeeklyLog(
+                                    user.id,
+                                    report.projectId,
+                                    report.weekNumber,
+                                    report.reviewerId || '',
+                                    profile.full_name
+                                  );
+                                  alert('Resubmitted successfully');
+                                  await loadReports();
+                                } catch (e) {
+                                  alert('Failed to resubmit');
+                                }
+                              }}
+                              className="bg-orange-600 hover:bg-orange-700"
+                            >
+                              Submit Ulang
+                            </Button>
+                          </div>
+
+                          {expandedWeek === report.weekNumber && (
+                            <div className="overflow-x-auto border rounded-lg">
+                              <table className="w-full border-collapse text-sm">
+                                <thead>
+                                  <tr className="bg-gray-50 border-b">
+                                    <th className="px-3 py-2 text-left">Tanggal</th>
+                                    <th className="px-3 py-2 text-left">Mulai</th>
+                                    <th className="px-3 py-2 text-left">Selesai</th>
+                                    <th className="px-3 py-2 text-left">Aktivitas</th>
+                                    <th className="px-3 py-2 text-left w-28">Aksi</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(weekEntries[report.weekNumber] || []).map((entry: any) => {
+                                    const startHH = toHHMM(entry.start_time);
+                                    const endHH = toHHMM(entry.end_time);
+                                    return (
+                                      <tr key={entry.id} className="border-b align-top">
+                                        <td className="px-3 py-2 whitespace-nowrap">{entry.entry_date}</td>
+                                        <td className="px-3 py-2">
+                                          <Input defaultValue={startHH} type="time" onChange={(e) => {
+                                            entry.__start = e.target.value;
+                                          }} />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          <Input defaultValue={endHH} type="time" onChange={(e) => {
+                                            entry.__end = e.target.value;
+                                          }} />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          <textarea
+                                            defaultValue={entry.content || ''}
+                                            onChange={(e) => { entry.__content = e.target.value; }}
+                                            className="w-full min-h-[80px] border rounded p-2"
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          <Button
+                                            size="sm"
+                                            disabled={!!savingMap[entry.id]}
+                                            onClick={async () => {
+                                              try {
+                                                setSavingMap(prev => ({ ...prev, [entry.id]: true }));
+                                                const newStart = entry.__start || startHH;
+                                                const newEnd = entry.__end || endHH;
+                                                const newContent = entry.__content ?? entry.content;
+                                                const isoStart = toISOWithOffset(entry.entry_date, newStart);
+                                                const isoEnd = toISOWithOffset(entry.entry_date, newEnd);
+                                                const [sh, sm] = newStart.split(':').map(Number);
+                                                const [eh, em] = newEnd.split(':').map(Number);
+                                                const duration = Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
+                                                await updateEntry(entry.id, {
+                                                  content: newContent,
+                                                  start_time: isoStart as any,
+                                                  end_time: isoEnd as any,
+                                                  duration_minutes: duration,
+                                                } as any);
+                                                await loadWeekEntries(report.weekNumber, report.projectId);
+                                              } catch (err) {
+                                                alert('Gagal menyimpan perubahan');
+                                              } finally {
+                                                setSavingMap(prev => ({ ...prev, [entry.id]: false }));
+                                              }
+                                            }}
+                                          >
+                                            Simpan
+                                          </Button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

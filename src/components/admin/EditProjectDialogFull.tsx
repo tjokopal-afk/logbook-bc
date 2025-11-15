@@ -82,7 +82,6 @@ export function EditProjectDialogFull({ isOpen, project, onClose, onSuccess }: E
           end_date: formData.end_date || null,
           deadline: formData.deadline || null,
           status: formData.status,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', project.id);
 
