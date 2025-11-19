@@ -3,7 +3,8 @@
 // Full CRUD operations for all users
 // =========================================
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { ROLES } from '@/utils/roleConfig';
 import { Card, CardContent,  CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -178,10 +179,10 @@ export default function KelolaUser() {
   const getStats = () => {
     return {
       total: users.length,
-      intern: users.filter((u) => u.role === 'intern').length,
-      mentor: users.filter((u) => u.role === 'mentor').length,
-      admin: users.filter((u) => u.role === 'admin').length,
-      superuser: users.filter((u) => u.role === 'superuser').length,
+      intern: users.filter((u) => u.role === ROLES.INTERN).length,
+      mentor: users.filter((u) => u.role === ROLES.MENTOR).length,
+      admin: users.filter((u) => u.role === ROLES.ADMIN).length,
+      superuser: users.filter((u) => u.role === ROLES.SUPERUSER).length,
     };
   };
 

@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { supabase } from '@/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { PROJECT_ROLES } from '@/utils/roleConfig';
 
 export interface Project {
   id: string;
@@ -232,7 +233,7 @@ export const useProjects = () => {
   const assignParticipant = async (
     projectId: string,
     userId: string,
-    roleInProject: string = 'member'
+    roleInProject: string = PROJECT_ROLES.MEMBER
   ) => {
     if (!user || !['admin', 'superuser'].includes(profile?.role || '')) {
       return { data: null, error: 'Unauthorized' };

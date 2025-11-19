@@ -91,11 +91,11 @@ export default function DataIntern() {
       const { data: departmentsData } = await supabase
         .from('departments')
         .select('id, nama, divisi')
-        .not('divisi', 'is', null);
+        .not('nama', 'is', null);
 
       // Create lookup maps
       const batchMap = new Map(batchesData?.map(b => [b.id, b.batch_name]) || []);
-      const divisionMap = new Map(departmentsData?.map(d => [d.id, `${d.nama} - ${d.divisi}`]) || []);
+      const divisionMap = new Map(departmentsData?.map(d => [d.id, `${d.divisi} - ${d.nama}`]) || []);
 
       // Fetch all intern profiles
       const { data: profiles, error: profileError } = await supabase

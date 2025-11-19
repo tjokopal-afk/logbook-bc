@@ -360,7 +360,7 @@ export default function SuperDashboard() {
       {/* Widgets Grid */}
       <div className="grid gap-4 lg:grid-cols-2">
         <UpcomingDeadlines limit={5} />
-        <RecentActivity limit={5} />
+        <RecentActivity role="superuser" limit={5} />
       </div>
 
       {/* Real-time Monitoring Section */}

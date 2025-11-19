@@ -18,7 +18,7 @@ interface User {
   full_name: string;
   role: 'intern' | 'mentor' | 'admin' | 'superuser';
   affiliation?: string;
-  department?: string;
+  divisi?: number;
 }
 
 interface EditUserDialogProps {
@@ -31,12 +31,24 @@ interface EditUserDialogProps {
 export function EditUserDialog({ isOpen, user, onClose, onSuccess }: EditUserDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [departments, setDepartments] = useState<{ id: number; nama: string; divisi: string | null }[]>([]);
   const [formData, setFormData] = useState({
     full_name: '',
     role: 'intern' as 'intern' | 'mentor' | 'admin' | 'superuser',
     affiliation: '',
-    department: '',
+    divisi: null as number | null,
   });
+
+  const loadDepartments = async () => {
+    const { data } = await supabase
+      .from('departments')
+      .select('id, nama, divisi')
+      .not('nama', 'is', null)
+      .order('nama', { ascending: true })
+      .order('divisi', { ascending: true });
+    
+    setDepartments(data || []);
+  };
 
   useEffect(() => {
     if (user) {
@@ -44,9 +56,10 @@ export function EditUserDialog({ isOpen, user, onClose, onSuccess }: EditUserDia
         full_name: user.full_name || '',
         role: user.role,
         affiliation: user.affiliation || '',
-        department: user.department || '',
+        divisi: user.divisi || null,
       });
     }
+    loadDepartments();
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,8 +72,8 @@ export function EditUserDialog({ isOpen, user, onClose, onSuccess }: EditUserDia
         .update({
           full_name: formData.full_name,
           role: formData.role,
-          affiliation: formData.affiliation,
-          department: formData.department,
+          affiliation: formData.affiliation || null,
+          divisi: formData.divisi || null,
         })
         .eq('id', user.id);
 
@@ -150,16 +163,22 @@ export function EditUserDialog({ isOpen, user, onClose, onSuccess }: EditUserDia
             />
           </div>
 
-          {/* Department */}
+          {/* Division */}
           <div>
-            <Label htmlFor="department">Department</Label>
-            <Input
-              id="department"
-              type="text"
-              value={formData.department}
-              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              placeholder="IT Department"
-            />
+            <Label htmlFor="divisi">Division (Divisi)</Label>
+            <select
+              id="divisi"
+              value={formData.divisi || ''}
+              onChange={(e) => setFormData({ ...formData, divisi: e.target.value ? Number(e.target.value) : null })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Select division</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.nama} - {dept.divisi}
+                </option>
+              ))}
+            </select>
           </div>
 
           <DialogFooter>

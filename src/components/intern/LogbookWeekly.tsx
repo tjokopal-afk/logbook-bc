@@ -41,7 +41,7 @@ interface DailyGroup {
 
 interface LogbookWeeklyProps {
   userId: string;
-  projectId: string;
+  projectId?: string | null; // Optional: logbook can exist without project
   weekNumber: number; // 1-12 for 12 weeks of internship
   mentorId: string; // Mentor who will review
   internName: string; // For notifications
@@ -101,7 +101,7 @@ export function LogbookWeekly({
 
         // Step 2: Load all entries for each day
         const entriesPromises = daysInWeek.map(date =>
-          getEntriesByDate(userId, projectId, format(date, 'yyyy-MM-dd'))
+          getEntriesByDate(userId, projectId || null, format(date, 'yyyy-MM-dd'))
         );
         const entriesArrays = await Promise.all(entriesPromises);
         const allEntries = entriesArrays.flat();
@@ -194,7 +194,7 @@ export function LogbookWeekly({
 
     try {
       setProcessing(true);
-      await submitWeeklyLog(userId, projectId, weekNumber, mentorId, internName);
+      await submitWeeklyLog(userId, projectId || null, weekNumber, mentorId, internName);
       alert('Weekly log submitted successfully! Waiting for mentor review.');
       window.location.reload();
     } catch (error) {
@@ -213,7 +213,7 @@ export function LogbookWeekly({
 
     try {
       setProcessing(true);
-      await resubmitWeeklyLog(userId, projectId, weekNumber, mentorId, internName);
+      await resubmitWeeklyLog(userId, projectId || null, weekNumber, mentorId, internName);
       alert('Weekly log resubmitted successfully!');
       window.location.reload();
     } catch (error) {
@@ -395,11 +395,86 @@ export function LogbookWeekly({
                           ) : null}
                           
                           {/* Time Column */}
-                          <td className="px-4 py-3 align-top">
-                            <span className="text-sm text-gray-700 whitespace-nowrap">
-                              {entry.start_time?.substring(0, 5)} - {entry.end_time?.substring(0, 5)}
-                            </span>
-                          </td>
+                            <td className="px-4 py-3 align-top">
+                              <span className="text-sm text-gray-700 whitespace-nowrap">
+                                {(() => {
+                                  const startRaw = entry.start_time ?? null;
+                                  const endRaw = entry.end_time ?? null;
+                                  const dur = entry.duration_minutes != null ? Number(entry.duration_minutes) : null;
+
+                                  const normalize = (t?: string | null) => {
+                                    if (!t) return null;
+                                    const raw = t.trim();
+                                    if (!raw) return null;
+                                    if (!raw.includes(':')) {
+                                      return `${String(Number(raw)).padStart(2, '0')}:00`;
+                                    }
+                                    const parts = raw.split(':');
+                                    const hh = parts[0] ? String(Number(parts[0])).padStart(2, '0') : '00';
+                                    const mm = parts[1] ? String(Number(parts[1])).padStart(2, '0') : '00';
+                                    return `${hh}:${mm}`;
+                                  };
+
+                                  const toDate = (dateStr: string, timePart: string | null) => {
+                                    if (!timePart) return null;
+                                    const iso = `${dateStr}T${timePart}`;
+                                    const d = new Date(iso);
+                                    return isNaN(d.getTime()) ? null : d;
+                                  };
+
+                                  try {
+                                    const sNorm = normalize(startRaw);
+                                    const eNorm = normalize(endRaw);
+                                    const sDate = toDate(group.date, sNorm);
+                                    const eDate = toDate(group.date, eNorm);
+
+                                    if (sDate && eDate) {
+                                      return `${format(sDate, 'HH:mm')} - ${format(eDate, 'HH:mm')}`;
+                                    }
+
+                                    if (sDate && dur != null && !Number.isNaN(dur)) {
+                                      const e = new Date(sDate.getTime() + dur * 60000);
+                                      return `${format(sDate, 'HH:mm')} - ${format(e, 'HH:mm')}`;
+                                    }
+
+                                    if (eDate && dur != null && !Number.isNaN(dur)) {
+                                      const s = new Date(eDate.getTime() - dur * 60000);
+                                      return `${format(s, 'HH:mm')} - ${format(eDate, 'HH:mm')}`;
+                                    }
+
+                                    if (!sDate && !eDate && dur != null && !Number.isNaN(dur)) {
+                                      const hh = Math.floor(dur / 60);
+                                      const mm = dur % 60;
+                                      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+                                    }
+
+                                    if (sNorm && !eNorm) return `${sNorm} - ?`;
+                                    if (!sNorm && eNorm) return `? - ${eNorm}`;
+                                    return '-';
+                                  } catch {
+                                    // Safe fallback
+                                    const pad = (t?: string | null) => {
+                                      if (!t) return null;
+                                      const parts = t.split(':').map(p => p.trim());
+                                      const hh = parts[0] ? String(Number(parts[0])).padStart(2, '0') : '00';
+                                      const mm = parts[1] ? String(Number(parts[1])).padStart(2, '0') : '00';
+                                      return `${hh}:${mm}`;
+                                    };
+                                    const s = pad(startRaw);
+                                    const e = pad(endRaw);
+                                    if (s && e) return `${s} - ${e}`;
+                                    if (s) return `${s} - ?`;
+                                    if (e) return `? - ${e}`;
+                                    if (dur != null && !Number.isNaN(dur)) {
+                                      const hh = Math.floor(dur / 60);
+                                      const mm = dur % 60;
+                                      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+                                    }
+                                    return '-';
+                                  }
+                                })()}
+                              </span>
+                            </td>
                           
                           {/* Duration Column */}
                           <td className="px-4 py-3 align-top">

@@ -16,7 +16,6 @@ import {
   Briefcase,
   Calendar,
   Building2,
-  TrendingUp,
   FileText
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
@@ -77,29 +76,49 @@ export default function InternSaya() {
   const loadInterns = async () => {
     setLoading(true);
     try {
-      // Get projects where current mentor is a participant
-      const { data: mentorProjects, error: projectsError } = await supabase
-        .from('project_participants')
-        .select('project_id')
-        .eq('user_id', currentUserId);
+      console.log('Loading interns for mentor:', currentUserId);
+      
+      // Step 1: Get all interns assigned to this mentor using profiles.mentor field
+      const { data: internProfiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          full_name,
+          email,
+          avatar_url,
+          affiliation,
+          role,
+          mentor,
+          batch,
+          start_date,
+          end_date
+        `)
+        .eq('mentor', currentUserId);
 
-      if (projectsError) throw projectsError;
+      console.log('Interns from profiles.mentor:', { 
+        mentorId: currentUserId, 
+        count: internProfiles?.length, 
+        error: profilesError
+      });
 
-      if (!mentorProjects || mentorProjects.length === 0) {
+      if (profilesError) throw profilesError;
+
+      if (!internProfiles || internProfiles.length === 0) {
+        console.warn('No interns found where profiles.mentor = mentor ID');
         setInterns([]);
         setLoading(false);
         return;
       }
 
-      const projectIds = mentorProjects.map((p: { project_id: string }) => p.project_id);
-
-      // Get all interns who are participants in these projects
+      // Step 2: Get their project assignments
+      const internIds = (internProfiles || []).map((p: { id: string }) => p.id);
+      
       const { data: internParticipants, error: participantsError } = await supabase
         .from('project_participants')
         .select(`
           user_id,
           project_id,
-          projects (
+          projects:project_id (
             id,
             name,
             start_date,
@@ -107,29 +126,28 @@ export default function InternSaya() {
             status
           )
         `)
-        .in('project_id', projectIds)
-        .neq('user_id', currentUserId);  // Exclude current mentor
+        .in('user_id', internIds);
+
+      console.log('Intern project assignments:', { 
+        count: internParticipants?.length, 
+        error: participantsError
+      });
 
       if (participantsError) throw participantsError;
 
-      // Get unique intern IDs
-      const internIds = [...new Set((internParticipants as Array<{ user_id: string }> | null)?.map((p: { user_id: string }) => p.user_id) || [])];
+      // Build a map of intern ID to their first project
+      const internProjectMap = new Map<string, { id: string; name: string; start_date: string; end_date: string; status: string }>();
+      internParticipants?.forEach((p: { user_id: string; projects: { id: string; name: string; start_date: string; end_date: string; status: string } }) => {
+        if (!internProjectMap.has(p.user_id)) {
+          internProjectMap.set(p.user_id, p.projects);
+        }
+      });
 
-      // Fetch intern profiles
-      const { data: internProfiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', internIds)
-        .eq('role', 'intern');
-
-      if (profilesError) throw profilesError;
-
-      // Build intern data with stats
+      // Step 3: Build intern data with statistics
       const internsData = await Promise.all(
-        (internProfiles || []).map(async (profile: any) => {
-          // Find intern's primary project (or first project)
-          const internProject = (internParticipants as Array<{ user_id: string; projects: { id: string; name: string; start_date: string; end_date: string; status: string } }> | null)?.find((p: { user_id: string }) => p.user_id === profile.id);
-          const project = internProject?.projects as { id: string; name: string; start_date: string; end_date: string; status: string } | undefined;
+        (internProfiles || []).map(async (profile: { id: string; full_name: string; email: string; avatar_url?: string; affiliation?: string; start_date?: string; end_date?: string }) => {
+          // Get intern's project assignment
+          const project = internProjectMap.get(profile.id);
 
           // Get logbook stats
           const { count: totalReports } = await supabase
@@ -143,7 +161,7 @@ export default function InternSaya() {
             .select('duration_minutes, start_time, end_time')
             .eq('user_id', profile.id);
 
-          const totalMinutes = (logbookData || []).reduce((sum: number, entry: any) => {
+          const totalMinutes = (logbookData || []).reduce((sum: number, entry: { duration_minutes?: number; start_time?: string; end_time?: string }) => {
             if (typeof entry.duration_minutes === 'number') return sum + entry.duration_minutes;
             if (entry.start_time && entry.end_time) {
               const start = new Date(entry.start_time);
@@ -164,8 +182,12 @@ export default function InternSaya() {
             .limit(1)
             .single();
 
-          // Determine status based on project end date
-          const status = project && new Date(project.end_date) > new Date() ? 'active' : 'completed';
+          // Use intern's start/end date if no project assigned
+          const startDate = project?.start_date || profile.start_date;
+          const endDate = project?.end_date || profile.end_date;
+
+          // Determine status based on end date
+          const status = endDate && new Date(endDate) > new Date() ? 'active' : 'completed';
 
           return {
             id: profile.id,
@@ -174,8 +196,8 @@ export default function InternSaya() {
             email: profile.email,
             affiliation: profile.affiliation || 'No affiliation',
             projectName: project?.name || 'No project assigned',
-            startDate: project?.start_date || new Date().toISOString(),
-            endDate: project?.end_date || new Date().toISOString(),
+            startDate: startDate || new Date().toISOString(),
+            endDate: endDate || new Date().toISOString(),
             status: status as 'active' | 'completed',
             lastActivity: lastActivityData?.created_at || new Date().toISOString(),
             totalReports: totalReports || 0,
@@ -184,6 +206,7 @@ export default function InternSaya() {
         })
       );
 
+      console.log('Final interns list:', internsData.length);
       setInterns(internsData);
     } catch (error) {
       console.error('Error loading interns:', error);
@@ -192,6 +215,7 @@ export default function InternSaya() {
         description: 'Failed to load interns',
         variant: 'destructive',
       });
+      setInterns([]);
     } finally {
       setLoading(false);
     }
@@ -289,16 +313,18 @@ export default function InternSaya() {
       </Card>
 
       {/* Intern Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredInterns.length === 0 ? (
           <div className="col-span-full">
-            <Card>
-              <CardContent className="py-12">
+            <Card className="border-0 shadow-none bg-gradient-to-br from-gray-50 to-gray-100">
+              <CardContent className="py-16">
                 <div className="flex flex-col items-center justify-center text-center">
-                  <Building2 className="w-16 h-16 text-gray-300 mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Tidak ada intern</h3>
-                  <p className="text-sm text-gray-600">
-                    {searchQuery ? 'Coba kata kunci lain' : 'Belum ada intern dalam bimbingan'}
+                  <div className="mb-6 p-4 rounded-full bg-white shadow-sm">
+                    <Building2 className="w-12 h-12 text-gray-300" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">Tidak ada intern</h3>
+                  <p className="text-sm text-gray-500 max-w-xs">
+                    {searchQuery ? 'Coba kata kunci lain atau sesuaikan filter Anda' : 'Belum ada intern yang ditugaskan untuk bimbingan Anda'}
                   </p>
                 </div>
               </CardContent>
@@ -308,127 +334,131 @@ export default function InternSaya() {
           filteredInterns.map((intern) => {
             const daysRemaining = getDaysRemaining(intern.endDate);
             const daysSinceLastActivity = differenceInDays(new Date(), new Date(intern.lastActivity));
+            const progressPercent = Math.min(
+              (differenceInDays(new Date(), new Date(intern.startDate)) / 
+              Math.max(1, differenceInDays(new Date(intern.endDate), new Date(intern.startDate)))) * 100,
+              100
+            );
 
             return (
-              <Card key={intern.id} className="hover:shadow-lg transition-shadow flex flex-col">
-                <CardContent className="pt-6 flex flex-col flex-1">
-                  {/* Header with Avatar */}
-                  <div className="flex items-center justify-between mb-4">
-                    <Avatar className="w-20 h-20">
+              <Card 
+                key={intern.id} 
+                className="hover:shadow-xl transition-all duration-300 flex flex-col border-0 bg-white overflow-hidden group"
+              >
+                {/* Status Bar at Top */}
+                <div className={`h-1 ${intern.status === 'active' ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 'bg-gradient-to-r from-gray-300 to-gray-400'}`} />
+                
+                <CardContent className="pt-5 flex flex-col flex-1 pb-4">
+                  {/* Header with Avatar - Improved Layout */}
+                  <div className="flex gap-4 mb-5">
+                    <Avatar className="w-16 h-16 ring-2 ring-offset-2 ring-blue-100 flex-shrink-0">
                       <AvatarImage src={intern.avatar} />
-                      <AvatarFallback className="bg-blue-100 text-blue-700 text-2xl">
-                        {intern.name.charAt(0)}
+                      <AvatarFallback className="bg-gradient-to-br from-blue-400 to-blue-600 text-white text-lg font-bold">
+                        {intern.name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <h3 className="text-lg font-bold">{intern.name}</h3>
-                      <p className="text-sm text-gray-600">{intern.email}</p>
-                      <Badge className={`mt-2 ${intern.status === 'active' ? 'bg-green-600' : 'bg-gray-600'}`}>
-                        {intern.status === 'active' ? 'Active' : 'Completed'}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-bold text-gray-900 truncate">{intern.name}</h3>
+                      <p className="text-xs text-gray-500 truncate">{intern.email}</p>
+                      <Badge className={`mt-2 text-xs font-medium ${
+                        intern.status === 'active' 
+                          ? 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 border border-green-200' 
+                          : 'bg-gradient-to-r from-gray-50 to-slate-50 text-gray-600 border border-gray-200'
+                      }`}>
+                        {intern.status === 'active' ? '✓ Active' : 'Completed'}
                       </Badge>
                     </div>
                   </div>
 
-                  {/* Info Section */}
-                  <div className="space-y-3 flex-1">
-                    <div className="flex items-start gap-2">
-                      <Building2 className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500">Affiliation</p>
-                        <p className="text-sm font-medium">{intern.affiliation}</p>
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-xs font-medium text-gray-600">Progress</p>
+                      <p className="text-xs font-semibold text-gray-700">{Math.round(progressPercent)}%</p>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-blue-400 to-blue-600 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Info Section - Grid Layout */}
+                  <div className="space-y-2.5 mb-4 flex-1">
+                    <div className="flex items-start gap-3 p-2.5 rounded-lg bg-gradient-to-r from-blue-50 to-transparent">
+                      <Building2 className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 font-medium">University</p>
+                        <p className="text-sm font-semibold text-gray-900 truncate">{intern.affiliation}</p>
                       </div>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <Briefcase className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500">Project</p>
-                        <p className="text-sm font-medium">{intern.projectName}</p>
+                    
+                    <div className="flex items-start gap-3 p-2.5 rounded-lg bg-gradient-to-r from-amber-50 to-transparent">
+                      <Briefcase className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 font-medium">Project</p>
+                        <p className="text-sm font-semibold text-gray-900 truncate">{intern.projectName}</p>
                       </div>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <Calendar className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500">Period</p>
-                        <p className="text-sm font-medium">
-                          {format(new Date(intern.startDate), 'dd MMM', { locale: idLocale })} - 
-                          {format(new Date(intern.endDate), 'dd MMM yyyy', { locale: idLocale })}
+                    
+                    <div className="flex items-start gap-3 p-2.5 rounded-lg bg-gradient-to-r from-purple-50 to-transparent">
+                      <Calendar className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 font-medium">Duration</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {format(new Date(intern.startDate), 'MMM dd', { locale: idLocale })}
+                          <span className="text-gray-400 mx-1">→</span>
+                          {format(new Date(intern.endDate), 'MMM dd', { locale: idLocale })} 
+                          <span> </span>
+                          ({daysRemaining > 0 ? `${daysRemaining}d left` : 'Done'})
                         </p>
                       </div>
                     </div>
-
-                    {/* Timeline Bar - Internship period */}
-                    <div>
-                      {(() => {
-                        const start = new Date(intern.startDate);
-                        const end = new Date(intern.endDate);
-                        const today = new Date();
-                        const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-                        const elapsedDays = Math.min(totalDays, Math.max(0, Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))));
-                        const pct = Math.max(0, Math.min(100, Math.round((elapsedDays / totalDays) * 100)));
-                        return (
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-gray-500">Timeline Magang</span>
-                              <span className="text-xs font-semibold">{pct}% ({elapsedDays}/{totalDays} hari)</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-2 pt-2">
-                      <div className="bg-gray-50 p-2 rounded">
-                        <p className="text-xs text-gray-500">Reports</p>
-                        <p className="text-lg font-bold text-gray-900">{intern.totalReports}</p>
-                      </div>
-                      <div className="bg-gray-50 p-2 rounded">
-                        <p className="text-xs text-gray-500">Hours</p>
-                        <p className="text-lg font-bold text-gray-900">{intern.totalHours}h</p>
-                      </div>
-                      {intern.status === 'active' && (
-                        <div className="bg-blue-50 p-2 rounded">
-                          <p className="text-xs text-gray-500">Days Left</p>
-                          <p className="text-lg font-bold text-blue-600">{daysRemaining}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Last Activity Warning */}
-                    {intern.status === 'active' && daysSinceLastActivity > 7 && (
-                      <div className="bg-orange-50 border border-orange-200 p-2 rounded text-xs text-orange-700">
-                        ⚠️ Last activity: {daysSinceLastActivity} days ago
-                      </div>
-                    )}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex flex-col gap-2 mt-4">
-                    <Button 
-                      variant="default" 
-                      size="sm" 
-                      className="w-full"
+                  {/* Stats Grid - Enhanced */}
+                  <div className="grid grid-cols-2 gap-3 mb-4 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 font-medium mb-1">Reports</p>
+                      <p className="text-2xl font-bold text-blue-600">{intern.totalReports}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 font-medium mb-1">Hours</p>
+                      <p className="text-2xl font-bold text-emerald-600">{intern.totalHours}h</p>
+                    </div>
+                  </div>
+
+                  {/* Last Activity - Improved */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 mb-4">
+                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    <p className="text-xs text-blue-700 font-medium">
+                      Last activity <span className="font-bold">{daysSinceLastActivity}d</span> ago
+                    </p>
+                  </div>
+
+                  {/* Action Buttons - Improved */}
+                  <div className="flex gap-2 mt-auto">
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-300"
                       onClick={() => {
                         setSelectedIntern(intern);
                         setShowDetailDialog(true);
                       }}
                     >
-                      <Eye className="w-4 h-4 mr-2" />
-                      View Detail Profile
+                      <Eye className="w-4 h-4 mr-1.5" />
+                      View
                     </Button>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate('/mentor/review-logbook')}
-                      >
-                        <Briefcase className="w-4 h-4 mr-1" />
-                        Project
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 transition-all duration-300"
+                      variant="outline"
+                      onClick={() => navigate(`/mentor/review-logbook?intern=${intern.id}`)}
+                    >
+                      <FileText className="w-4 h-4 mr-1.5" />
+                      Logs
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -439,121 +469,82 @@ export default function InternSaya() {
 
       {/* Detail Dialog */}
       {showDetailDialog && selectedIntern && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">Detail Profil Intern</h2>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => {
-                    setShowDetailDialog(false);
-                    setSelectedIntern(null);
-                  }}
-                >
-                  ✕
-                </Button>
-              </div>
-
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto border-0 shadow-2xl">
+            {/* Header Bar */}
+            <div className={`h-2 ${selectedIntern.status === 'active' ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 'bg-gradient-to-r from-gray-300 to-gray-400'}`} />
+            
+            <CardContent className="p-8">
               <div className="space-y-6">
-                {/* Profile Header */}
-                <div className="flex items-center gap-4">
-                  <Avatar className="w-24 h-24">
+                {/* Header */}
+                <div className="flex items-start gap-4 pb-6 border-b border-gray-100">
+                  <Avatar className="w-28 h-28 ring-4 ring-offset-2 ring-blue-100 flex-shrink-0">
                     <AvatarImage src={selectedIntern.avatar} />
-                    <AvatarFallback className="bg-blue-100 text-blue-700 text-3xl">
-                      {selectedIntern.name.charAt(0)}
+                    <AvatarFallback className="bg-gradient-to-br from-blue-400 to-blue-600 text-white text-4xl font-bold">
+                      {selectedIntern.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <h3 className="text-xl font-bold">{selectedIntern.name}</h3>
-                    <p className="text-gray-600">{selectedIntern.email}</p>
-                    <Badge className={`mt-2 ${selectedIntern.status === 'active' ? 'bg-green-600' : 'bg-gray-600'}`}>
-                      {selectedIntern.status === 'active' ? 'Active' : 'Completed'}
-                    </Badge>
+                  <div className="flex-1">
+                    <h2 className="text-3xl font-bold text-gray-900">{selectedIntern.name}</h2>
+                    <p className="text-gray-500 mt-1">{selectedIntern.email}</p>
+                    <div className="flex gap-2 mt-4">
+                      <Badge className={`text-sm font-semibold ${
+                        selectedIntern.status === 'active' 
+                          ? 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 border border-green-200' 
+                          : 'bg-gradient-to-r from-gray-50 to-slate-50 text-gray-600 border border-gray-200'
+                      }`}>
+                        {selectedIntern.status === 'active' ? '✓ Active' : 'Completed'}
+                      </Badge>
+                    </div>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="hover:bg-gray-100"
+                    onClick={() => setShowDetailDialog(false)}
+                  >
+                    ✕
+                  </Button>
                 </div>
 
                 {/* Details Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Affiliation</p>
-                    <p className="font-medium">{selectedIntern.affiliation}</p>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-transparent border border-blue-100">
+                    <p className="text-sm text-gray-600 font-medium mb-1">University</p>
+                    <p className="text-lg font-bold text-gray-900">{selectedIntern.affiliation}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Project</p>
-                    <p className="font-medium">{selectedIntern.projectName}</p>
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-amber-50 to-transparent border border-amber-100">
+                    <p className="text-sm text-gray-600 font-medium mb-1">Project</p>
+                    <p className="text-lg font-bold text-gray-900">{selectedIntern.projectName}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Start Date</p>
-                    <p className="font-medium">{format(new Date(selectedIntern.startDate), 'dd MMMM yyyy', { locale: idLocale })}</p>
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-purple-50 to-transparent border border-purple-100">
+                    <p className="text-sm text-gray-600 font-medium mb-1">Start Date</p>
+                    <p className="text-lg font-bold text-gray-900">{format(new Date(selectedIntern.startDate), 'PPP', { locale: idLocale })}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">End Date</p>
-                    <p className="font-medium">{format(new Date(selectedIntern.endDate), 'dd MMMM yyyy', { locale: idLocale })}</p>
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-pink-50 to-transparent border border-pink-100">
+                    <p className="text-sm text-gray-600 font-medium mb-1">End Date</p>
+                    <p className="text-lg font-bold text-gray-900">{format(new Date(selectedIntern.endDate), 'PPP', { locale: idLocale })}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Last Activity</p>
-                    <p className="font-medium">{format(new Date(selectedIntern.lastActivity), 'dd MMMM yyyy', { locale: idLocale })}</p>
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-indigo-50 to-transparent border border-indigo-100">
+                    <p className="text-sm text-gray-600 font-medium mb-1">Total Reports</p>
+                    <p className="text-lg font-bold text-indigo-600">{selectedIntern.totalReports}</p>
                   </div>
-                  {/* Progress replaced by timeline */}
-                  <div>
-                    <p className="text-sm text-gray-500">Timeline</p>
-                    <p className="font-medium">
-                      {(() => {
-                        const start = new Date(selectedIntern.startDate);
-                        const end = new Date(selectedIntern.endDate);
-                        const today = new Date();
-                        const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-                        const elapsedDays = Math.min(totalDays, Math.max(0, Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))));
-                        const pct = Math.max(0, Math.min(100, Math.round((elapsedDays / totalDays) * 100)));
-                        return `${pct}% (${elapsedDays}/${totalDays} hari)`;
-                      })()}
-                    </p>
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-emerald-50 to-transparent border border-emerald-100">
+                    <p className="text-sm text-gray-600 font-medium mb-1">Total Hours</p>
+                    <p className="text-lg font-bold text-emerald-600">{selectedIntern.totalHours} hours</p>
                   </div>
                 </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg text-center">
-                    <p className="text-sm text-gray-600">Total Reports</p>
-                    <p className="text-2xl font-bold text-blue-600">{selectedIntern.totalReports}</p>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-lg text-center">
-                    <p className="text-sm text-gray-600">Total Hours</p>
-                    <p className="text-2xl font-bold text-green-600">{selectedIntern.totalHours}h</p>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <Button 
-                    className="flex-1"
-                    onClick={() => {
-                      if (selectedIntern.totalReports > 0) {
-                        // Navigate to review logbook with intern name as filter
-                        navigate(`/mentor/review-logbook?intern=${encodeURIComponent(selectedIntern.name)}`);
-                        setShowDetailDialog(false);
-                      } else {
-                        alert('Belum ada laporan tersubmit dari intern ini.');
-                      }
-                    }}
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4 border-t border-gray-100">
+                  <Button
+                    className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 h-11"
+                    onClick={() => navigate(`/mentor/review-logbook?intern=${selectedIntern.id}`)}
                   >
                     <FileText className="w-4 h-4 mr-2" />
-                    Lihat Laporan
+                    View Logbooks
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => {
-                      // Navigate to progress intern with intern name as filter
-                      navigate(`/mentor/progress-intern?intern=${encodeURIComponent(selectedIntern.name)}`);
-                      setShowDetailDialog(false);
-                    }}
-                  >
-                    <TrendingUp className="w-4 h-4 mr-2" />
-                    Penilaian
-                  </Button>
+                
                 </div>
               </div>
             </CardContent>

@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/supabase';
 import type { Profile } from '@/lib/api/types';
+import { ROLES } from '@/utils/roleConfig';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Users,
@@ -235,7 +236,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
       newStats.rejectedTasks = rejectedTasks || 0;
 
       // Role-specific stats
-      if (effectiveRole === 'admin' || effectiveRole === 'superuser') {
+      if (effectiveRole === ROLES.ADMIN || effectiveRole === ROLES.SUPERUSER) {
         // Admin stats
         const { count: totalUsers } = await supabase
           .from('profiles')
@@ -245,15 +246,16 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
           .from('logbook_entries')
           .select('*', { count: 'exact', head: true });
 
+        // Count pending weekly submissions (category contains '_log_submitted')
         const { count: pendingReviews } = await supabase
-          .from('logbook_weekly')
+          .from('logbook_entries')
           .select('*', { count: 'exact', head: true })
-          .eq('reviewed', false);
+          .like('category', '%_log_submitted');
 
         newStats.totalUsers = totalUsers || 0;
         newStats.totalLogbookEntries = totalLogbookEntries || 0;
         newStats.pendingReviews = pendingReviews || 0;
-      } else if (effectiveRole === 'mentor') {
+      } else if (effectiveRole === ROLES.MENTOR) {
         // Mentor stats - tasks to review
         const { count: tasksToReview } = await supabase
           .from('tasks')
@@ -263,14 +265,14 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
 
         newStats.tasksToReview = tasksToReview || 0;
 
-        // Logbook reviews pending
+        // Logbook weekly submissions pending review (category contains '_log_submitted')
         const { count: pendingReviews } = await supabase
-          .from('logbook_weekly')
+          .from('logbook_entries')
           .select('*', { count: 'exact', head: true })
-          .eq('reviewed', false);
+          .like('category', '%_log_submitted');
 
         newStats.pendingReviews = pendingReviews || 0;
-      } else if (effectiveRole === 'intern' && effectiveUserId) {
+      } else if (effectiveRole === ROLES.INTERN && effectiveUserId) {
         // Intern stats - my tasks
         const { count: myTasks } = await supabase
           .from('tasks')
@@ -399,7 +401,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
       {mode !== 'intern' && renderUniversalAndTaskStats()}
 
       {/* Role-Specific Stats */}
-      {effectiveRole === 'admin' || effectiveRole === 'superuser' ? (
+      {effectiveRole === ROLES.ADMIN || effectiveRole === ROLES.SUPERUSER ? (
         <div>
           <h3 className="text-lg font-semibold mb-4">Statistik Admin</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -426,7 +428,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
             />
           </div>
         </div>
-      ) : effectiveRole === 'mentor' ? (
+      ) : effectiveRole === ROLES.MENTOR ? (
         <div>
           <h3 className="text-lg font-semibold mb-4">Tugas Mentor</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -446,7 +448,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
             />
           </div>
         </div>
-      ) : effectiveRole === 'intern' ? (
+      ) : effectiveRole === ROLES.INTERN ? (
         <div>
           <h3 className="text-lg font-semibold mb-4">Tugas Saya</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -471,12 +473,12 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
       ) : null}
 
       {/* Completion Rate */}
-      {(effectiveRole === 'intern' ? (stats.myTasks || 0) > 0 : stats.totalTasks > 0) && (
+      {(effectiveRole === ROLES.INTERN ? (stats.myTasks || 0) > 0 : stats.totalTasks > 0) && (
         <Card>
           <CardHeader>
             <CardTitle>Tingkat Penyelesaian Tugas</CardTitle>
             <CardDescription>
-              {effectiveRole === 'intern' ? 'Progress tugas pribadi' : 'Persentase tugas yang telah diselesaikan'}
+              {effectiveRole === ROLES.INTERN ? 'Progress tugas pribadi' : 'Persentase tugas yang telah diselesaikan'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -484,7 +486,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Progress</span>
                 <span className="font-semibold">
-                  {effectiveRole === 'intern'
+                  {effectiveRole === ROLES.INTERN
                     ? Math.round(((stats.myCompletedTasks || 0) / (stats.myTasks || 1)) * 100)
                     : Math.round((stats.approvedTasks / stats.totalTasks) * 100)}%
                 </span>
@@ -493,20 +495,20 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
                 <div
                   className="bg-gradient-to-r from-green-400 to-green-600 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
                   style={{
-                    width: `${effectiveRole === 'intern'
+                    width: `${effectiveRole === ROLES.INTERN
                       ? (((stats.myCompletedTasks || 0) / (stats.myTasks || 1)) * 100)
                       : ((stats.approvedTasks / stats.totalTasks) * 100)}%`,
                   }}
                 >
                   <span className="text-xs text-white font-semibold">
-                    {effectiveRole === 'intern'
+                    {effectiveRole === ROLES.INTERN
                       ? `${stats.myCompletedTasks || 0}/${stats.myTasks || 0}`
                       : `${stats.approvedTasks}/${stats.totalTasks}`}
                   </span>
                 </div>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                {effectiveRole === 'intern' ? (
+                {effectiveRole === ROLES.INTERN ? (
                   <>
                     <span>Total: {stats.myTasks || 0}</span>
                     <span>Selesai: {stats.myCompletedTasks || 0}</span>

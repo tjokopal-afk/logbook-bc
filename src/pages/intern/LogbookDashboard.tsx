@@ -19,6 +19,7 @@ import {
 import { LogbookDaily } from '@/components/intern/LogbookDaily';
 import { LogbookWeekly } from '@/components/intern/LogbookWeekly';
 import { supabase } from '@/supabase';
+import { PROJECT_ROLES } from '@/utils/roleConfig';
 
 interface LogbookStats {
   draftCount: number;
@@ -43,8 +44,42 @@ export default function InternLogbookDashboard() {
   const [selectedWeek, setSelectedWeek] = useState(1);
 
   // Get user's project and mentor info
-  const [projectId] = useState<string>('');
-  const [mentorId] = useState<string>('');
+  const [projectId, setProjectId] = useState<string>('');
+  const [mentorId, setMentorId] = useState<string>('');
+
+  // Load project info from database
+  useEffect(() => {
+    const loadProjectInfo = async () => {
+      if (!user) return;
+      
+      try {
+        const { data } = await supabase
+          .from('project_participants')
+          .select('project_id, projects!inner(id, name)')
+          .eq('user_id', user.id)
+          .eq('role_in_project', PROJECT_ROLES.MEMBER)
+          .limit(1)
+          .maybeSingle();
+
+        if (data) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const project = (data as any).projects;
+          setProjectId(project.id);
+        }
+      } catch (error) {
+        console.error('Error loading project:', error);
+      }
+    };
+
+    if (user) loadProjectInfo();
+  }, [user]);
+
+  // Load mentor from profile
+  useEffect(() => {
+    if (profile?.mentor) {
+      setMentorId(profile.mentor);
+    }
+  }, [profile]);
 
   const loadStats = useCallback(async () => {
     if (!user) return;
@@ -112,7 +147,6 @@ export default function InternLogbookDashboard() {
   useEffect(() => {
     if (user) {
       loadStats();
-      // TODO: Load project and mentor info from project_participants
     }
   }, [user, loadStats]);
 

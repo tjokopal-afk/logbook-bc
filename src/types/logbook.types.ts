@@ -21,7 +21,7 @@ export interface LogbookEntry {
   start_time?: string | null; // Timestamptz
   end_time?: string | null; // Timestamptz
   duration_minutes?: number | null; // Integer
-  content: string; // Activity description
+  content: string; // Activity description and details
   
   /**
    * Category workflow:

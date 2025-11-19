@@ -14,6 +14,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { 
   Calendar,
   Save,
   Upload,
@@ -33,6 +40,7 @@ import {
   deleteEntry, 
   getEntriesByDate 
 } from '@/services/logbookService';
+import { supabase } from '@/supabase';
 
 interface LogbookDailyProps {
   userId: string;
@@ -76,6 +84,12 @@ export function LogbookDaily({ userId, projectId, taskId, startDate }: LogbookDa
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [editingEntry, setEditingEntry] = useState<LogbookEntry | null>(null);
   
+  // Project and Task selection state
+  const [availableProjects, setAvailableProjects] = useState<Array<{ id: string; name: string }>>([]);
+  const [availableTasks, setAvailableTasks] = useState<Array<{ id: string; title: string; project_id: string }>>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(projectId);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(taskId);
+  
   // Form fields (for new entry or editing)
   const [content, setContent] = useState('');
   const DEFAULT_START = '07:30';
@@ -83,6 +97,55 @@ export function LogbookDaily({ userId, projectId, taskId, startDate }: LogbookDa
   const [startTime, setStartTime] = useState(DEFAULT_START);
   const [endTime, setEndTime] = useState(DEFAULT_END);
   const [files, setFiles] = useState<File[]>([]);
+
+  // Load user's available projects
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('project_participants')
+          .select('project_id, projects!inner(id, name)')
+          .eq('user_id', userId);
+        
+        if (error) throw error;
+        
+        if (data) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const projects = data.map((p: any) => ({
+            id: p.projects.id,
+            name: p.projects.name
+          }));
+          setAvailableProjects(projects);
+        }
+      } catch (error) {
+        console.error('Load projects error:', error);
+      }
+    };
+    
+    loadProjects();
+  }, [userId]);
+
+  // Load user's available tasks
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('id, title, project_id')
+          .eq('assigned_to', userId);
+        
+        if (error) throw error;
+        
+        if (data) {
+          setAvailableTasks(data);
+        }
+      } catch (error) {
+        console.error('Load tasks error:', error);
+      }
+    };
+    
+    loadTasks();
+  }, [userId]);
 
   // Load all entries for selected date
   const loadDailyEntries = useCallback(async () => {
@@ -156,8 +219,8 @@ export function LogbookDaily({ userId, projectId, taskId, startDate }: LogbookDa
         // Create new entry
         await createEntry({
           user_id: userId,
-          project_id: projectId || undefined, // Optional: can be undefined if not assigned to project
-          task_id: taskId || undefined,
+          project_id: selectedProjectId || undefined, // Use selected project from dropdown
+          task_id: selectedTaskId || undefined, // Use selected task from dropdown
           entry_date: selectedDate,
           content,
           start_time: startTime,
@@ -174,6 +237,8 @@ export function LogbookDaily({ userId, projectId, taskId, startDate }: LogbookDa
       setStartTime(DEFAULT_START);
       setEndTime(DEFAULT_END);
       setFiles([]);
+      setSelectedProjectId(projectId); // Reset to default prop value
+      setSelectedTaskId(taskId); // Reset to default prop value
       setEditingEntry(null);
 
       if (editingEntry) {
@@ -248,6 +313,8 @@ export function LogbookDaily({ userId, projectId, taskId, startDate }: LogbookDa
     setStartTime(DEFAULT_START);
     setEndTime(DEFAULT_END);
     setFiles([]);
+    setSelectedProjectId(projectId);
+    setSelectedTaskId(taskId);
   };
 
   // Calculate total duration for the day
@@ -339,6 +406,55 @@ export function LogbookDaily({ userId, projectId, taskId, startDate }: LogbookDa
               {calculateDuration(startTime, endTime) % 60}m
             </div>
           )}
+
+          {/* Project and Task Selection */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="project-select">Project (Optional)</Label>
+              <Select
+                value={selectedProjectId}
+                onValueChange={(value) => {
+                  setSelectedProjectId(value === 'none' ? undefined : value);
+                  // Reset task if project changes
+                  if (value === 'none') setSelectedTaskId(undefined);
+                }}
+              >
+                <SelectTrigger id="project-select">
+                  <SelectValue placeholder="No project selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No project</SelectItem>
+                  {availableProjects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="task-select">Task (Optional)</Label>
+              <Select
+                value={selectedTaskId}
+                onValueChange={(value) => setSelectedTaskId(value === 'none' ? undefined : value)}
+                disabled={!selectedProjectId}
+              >
+                <SelectTrigger id="task-select">
+                  <SelectValue placeholder={selectedProjectId ? "No task selected" : "Select project first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No task</SelectItem>
+                  {availableTasks
+                    .filter((task) => !selectedProjectId || task.project_id === selectedProjectId)
+                    .map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.title}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
           {/* Activity Description */}
           <div>

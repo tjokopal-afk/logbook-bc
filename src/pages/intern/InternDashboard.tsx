@@ -245,7 +245,7 @@ export default function InternDashboard() {
       {/* Row 4: Upcoming deadlines and recent activity */}
       <div className="grid gap-4 lg:grid-cols-2">
         <UpcomingDeadlines limit={5} userId={profile?.id} />
-        <RecentActivity limit={5} userId={profile?.id} />
+        <RecentActivity role="intern" limit={5} userId={profile?.id} />
       </div>
     </div>
   );

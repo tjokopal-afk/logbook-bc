@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { ROLES } from '@/utils/roleConfig';
 import { 
   User,
   Mail,
@@ -389,7 +390,7 @@ export default function ProfileSettings() {
       </Card>
 
       {/* Signature Section (Admin Only) */}
-      {user.role === 'admin' && (
+      {user.role === ROLES.ADMIN && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

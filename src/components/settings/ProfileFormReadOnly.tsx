@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FileUploader } from '@/components/common/FileUpload';
+import { ROLES } from '@/utils/roleConfig';
 import { 
   User, 
   Mail, 
@@ -42,7 +43,7 @@ export function ProfileFormReadOnly() {
       username: profile?.username,
       phone: profile?.phone,
       company: profile?.company,
-      division: profile?.division,
+      divisi: profile?.divisi,
       start_date: profile?.start_date,
       end_date: profile?.end_date,
       avatar_url: profile?.avatar_url,
@@ -50,7 +51,8 @@ export function ProfileFormReadOnly() {
     });
   }, [profile]);
 
-  // Fetch divisi name from departments table
+  // Fetch division and department name from departments table
+  // Hierarchy: Division (divisi) → Department (nama)
   useEffect(() => {
     const fetchDivisiName = async () => {
       if (!profile?.divisi) {
@@ -60,7 +62,7 @@ export function ProfileFormReadOnly() {
       try {
         const { data, error } = await supabase
           .from('departments')
-          .select('divisi')
+          .select('divisi, nama')
           .eq('id', profile.divisi)
           .single();
         
@@ -68,7 +70,11 @@ export function ProfileFormReadOnly() {
           console.error('Error fetching divisi:', error);
           return;
         }
-        setDivisiName(data?.divisi || '');
+        // Display as: Division - Department  
+        const displayName = data?.nama 
+          ? `${data.divisi} - ${data.nama}`
+          : data?.divisi || '';
+        setDivisiName(displayName);
       } catch (error) {
         console.error('Error:', error);
       }
@@ -103,9 +109,8 @@ export function ProfileFormReadOnly() {
   }, [profile?.batch]);
 
   useEffect(() => {
-    if (profile) {
-      // Load signature from user metadata or profile
-      setSignatureUrl(''); // TODO: Load from database
+    if (profile?.signature_url) {
+      setSignatureUrl(profile.signature_url);
     }
   }, [profile]);
 
@@ -278,7 +283,7 @@ export function ProfileFormReadOnly() {
         <CardContent className="pt-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Briefcase className="w-5 h-5 text-green-600" />
-            {profile.role === 'intern' ? 'Informasi Magang' : 'Informasi Karyawan'}
+            {profile.role === ROLES.INTERN ? 'Informasi Magang' : 'Informasi Karyawan'}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Affiliation (Company) */}
@@ -293,7 +298,7 @@ export function ProfileFormReadOnly() {
             </div>
 
             {/* Jurusan (Major) */}
-            { profile.role === 'intern' && (
+            { profile.role === ROLES.INTERN && (
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <BookOpen className="w-4 h-4 text-blue-600" />
@@ -317,20 +322,20 @@ export function ProfileFormReadOnly() {
             </div>
 
             {/* Batch/Angkatan */}
-            { profile.role === 'intern' && (
+            { profile.role === ROLES.INTERN && (
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
               <div className="p-2 bg-indigo-100 rounded-lg">
                 <Hash className="w-4 h-4 text-indigo-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 mb-1">Angkatan</p>
+                <p className="text-xs text-gray-500 mb-1">Batch</p>
                 <p className="font-medium text-gray-900">{batchName || '-'}</p>
               </div>
             </div>
             )}
 
             {/* Nomor Induk (Student ID) */}
-            { profile.role === 'intern' ? (
+            { profile.role === ROLES.INTERN ? (
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
               <div className="p-2 bg-teal-100 rounded-lg">
                 <IdCard className="w-4 h-4 text-teal-600" />
@@ -353,7 +358,7 @@ export function ProfileFormReadOnly() {
             )}
 
             {/* Start Date */}
-            { profile.role === 'intern' && (
+            { profile.role === ROLES.INTERN && (
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
               <div className="p-2 bg-purple-100 rounded-lg">
                 <Calendar className="w-4 h-4 text-purple-600" />
@@ -371,7 +376,7 @@ export function ProfileFormReadOnly() {
             )}
 
             {/* End Date */}
-            { profile.role === 'intern' && (
+            { profile.role === ROLES.INTERN && (
             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
               <div className="p-2 bg-orange-100 rounded-lg">
                 <Calendar className="w-4 h-4 text-orange-600" />

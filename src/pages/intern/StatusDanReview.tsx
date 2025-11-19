@@ -23,6 +23,17 @@ import { supabase } from '@/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { resubmitWeeklyLog } from '@/services/logbookReviewService';
 import { updateEntry } from '@/services/logbookService';
+import EditLogbookEntryDialog from '@/components/intern/EditLogbookEntryDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 // Mock data - replace with real Supabase data
 interface Report {
@@ -53,7 +64,20 @@ export default function StatusDanReview() {
   const { user, profile } = useAuth();
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
   const [weekEntries, setWeekEntries] = useState<Record<number, any[]>>({});
-  const [savingMap, setSavingMap] = useState<Record<string, boolean>>({});
+  const [loadingEntries, setLoadingEntries] = useState<Record<number, boolean>>({});
+  const [editingEntry, setEditingEntry] = useState<any | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     loadReports();
@@ -122,19 +146,33 @@ export default function StatusDanReview() {
         let mentorName: string | undefined;
         let reviewedAt: string | undefined;
         let reviewerId: string | undefined;
-        const ids = list.map((e: any) => e.id);
+        const ids = list.map((e: any) => e.id).filter(Boolean);
         if (ids.length > 0) {
-          const { data: rev } = await supabase
-            .from('reviews')
-            .select('comment, reviewer_id, created_at, reviewer:profiles!reviews_reviewer_id_fkey(full_name)')
-            .in('entry_id', ids)
-            .order('created_at', { ascending: false })
-            .limit(1);
-          if (rev && rev.length > 0) {
-            mentorComment = (rev[0] as any).comment || undefined;
-            mentorName = (rev[0] as any).reviewer?.full_name || undefined;
-            reviewedAt = (rev[0] as any).created_at || undefined;
-            reviewerId = (rev[0] as any).reviewer_id || undefined;
+          try {
+            // Get most recent review for any of the entries in this week
+            const { data: revs, error: revError } = await supabase
+              .from('reviews')
+              .select(`
+                comment,
+                reviewer_id,
+                created_at,
+                reviewer:profiles!reviews_reviewer_id_fkey1(full_name)
+              `)
+              .in('entry_id', ids)
+              .order('created_at', { ascending: false });
+            
+            if (revError) {
+              console.warn('Error fetching reviews for week', weekNumber, ':', revError);
+            } else if (revs && revs.length > 0) {
+              // Use the most recent review
+              const latestReview = revs[0] as any;
+              mentorComment = latestReview.comment || undefined;
+              mentorName = latestReview.reviewer?.full_name || undefined;
+              reviewedAt = latestReview.created_at || undefined;
+              reviewerId = latestReview.reviewer_id || undefined;
+            }
+          } catch (err) {
+            console.error('Exception fetching reviews:', err);
           }
         }
         const projectId = list[0]?.project_id ?? null;
@@ -186,16 +224,60 @@ export default function StatusDanReview() {
   };
 
   const loadWeekEntries = async (weekNumber: number, projectId?: string | null) => {
-    if (!user?.id || !projectId) return;
-    const { data } = await supabase
-      .from('logbook_entries')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('project_id', projectId)
-      .like('category', `weekly_${weekNumber}_log_%`)
-      .order('entry_date', { ascending: true })
-      .order('start_time', { ascending: true });
-    setWeekEntries(prev => ({ ...prev, [weekNumber]: data || [] }));
+    if (!user?.id) return;
+    
+    try {
+      setLoadingEntries(prev => ({ ...prev, [weekNumber]: true }));
+      
+      let query = supabase
+        .from('logbook_entries')
+        .select('*')
+        .eq('user_id', user.id)
+        .like('category', `weekly_${weekNumber}_log_%`)
+        .order('entry_date', { ascending: true })
+        .order('start_time', { ascending: true });
+      
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      } else {
+        query = query.is('project_id', null);
+      }
+      
+      const { data } = await query;
+      setWeekEntries(prev => ({ ...prev, [weekNumber]: data || [] }));
+    } catch (error) {
+      console.error('Error loading week entries:', error);
+    } finally {
+      setLoadingEntries(prev => ({ ...prev, [weekNumber]: false }));
+    }
+  };
+
+  const handleEditEntry = (entry: any) => {
+    setEditingEntry(entry);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEntry = async (entryId: string, updates: Partial<any>) => {
+    try {
+      await updateEntry(entryId, updates as any);
+      
+      // Reload the entries for this week
+      const entry = editingEntry;
+      if (entry) {
+        // Find which week this entry belongs to
+        const weekMatch = entry.category?.match(/weekly_(\d+)_/);
+        if (weekMatch) {
+          const weekNumber = parseInt(weekMatch[1]);
+          const report = reports.find(r => r.weekNumber === weekNumber);
+          if (report) {
+            await loadWeekEntries(weekNumber, report.projectId);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error saving entry:', error);
+      throw error;
+    }
   };
 
   const applyFilters = () => {
@@ -567,35 +649,111 @@ export default function StatusDanReview() {
                               <Button
                                 variant="outline"
                                 onClick={async () => {
-                                  const next = expandedWeek === report.weekNumber ? null : report.weekNumber;
-                                  setExpandedWeek(next);
-                                  if (next) {
+                                  const isCurrentlyExpanded = expandedWeek === report.weekNumber;
+                                  
+                                  if (isCurrentlyExpanded) {
+                                    // Collapse
+                                    setExpandedWeek(null);
+                                  } else {
+                                    // Expand and load entries
+                                    setExpandedWeek(report.weekNumber);
                                     await loadWeekEntries(report.weekNumber, report.projectId);
                                   }
                                 }}
+                                disabled={loadingEntries[report.weekNumber]}
                               >
-                                {expandedWeek === report.weekNumber ? 'Tutup Edit' : 'Edit Logbook'}
+                                {loadingEntries[report.weekNumber] ? 'Loading...' : 
+                                 expandedWeek === report.weekNumber ? 'Tutup Edit' : 'Edit Logbook'}
                               </Button>
                             </div>
                             <Button
-                              onClick={async () => {
-                                if (!user?.id || !profile?.full_name) return;
-                                if (!report.projectId) return;
-                                const confirmRes = window.confirm(`Resubmit Week ${report.weekNumber} after revisions?`);
-                                if (!confirmRes) return;
-                                try {
-                                  await resubmitWeeklyLog(
-                                    user.id,
-                                    report.projectId,
-                                    report.weekNumber,
-                                    report.reviewerId || '',
-                                    profile.full_name
-                                  );
-                                  alert('Resubmitted successfully');
-                                  await loadReports();
-                                } catch (e) {
-                                  alert('Failed to resubmit');
+                              onClick={() => {
+                                if (!user?.id || !profile?.full_name) {
+                                  setConfirmDialog({
+                                    open: true,
+                                    title: 'Informasi Tidak Lengkap',
+                                    description: 'User information tidak lengkap. Silakan lengkapi profil Anda terlebih dahulu.',
+                                    onConfirm: () => setConfirmDialog(prev => ({ ...prev, open: false })),
+                                  });
+                                  return;
                                 }
+                                
+                                if (!report.reviewerId) {
+                                  setConfirmDialog({
+                                    open: true,
+                                    title: 'Reviewer Tidak Ditemukan',
+                                    description: 'Reviewer ID tidak ditemukan. Tidak dapat melakukan resubmit.',
+                                    onConfirm: () => setConfirmDialog(prev => ({ ...prev, open: false })),
+                                  });
+                                  return;
+                                }
+                                
+                                // Load entries first if not loaded
+                                const entries = weekEntries[report.weekNumber] || [];
+                                if (entries.length === 0) {
+                                  loadWeekEntries(report.weekNumber, report.projectId).then(() => {
+                                    const loadedEntries = weekEntries[report.weekNumber] || [];
+                                    if (loadedEntries.length === 0) {
+                                      setConfirmDialog({
+                                        open: true,
+                                        title: 'Tidak Ada Entry',
+                                        description: 'Tidak ada entry untuk minggu ini. Silakan tambahkan entry terlebih dahulu di halaman logbook.',
+                                        onConfirm: () => setConfirmDialog(prev => ({ ...prev, open: false })),
+                                      });
+                                    }
+                                  });
+                                  return;
+                                }
+                                
+                                // Validate all entries have required data
+                                const invalidEntries = entries.filter(e => 
+                                  !e.start_time || !e.end_time || !e.content?.trim() || (e.duration_minutes || 0) <= 0
+                                );
+                                
+                                if (invalidEntries.length > 0) {
+                                  setConfirmDialog({
+                                    open: true,
+                                    title: 'Entry Tidak Lengkap',
+                                    description: `Ada ${invalidEntries.length} entry yang belum lengkap. Pastikan semua entry memiliki waktu dan aktivitas yang valid.`,
+                                    onConfirm: () => setConfirmDialog(prev => ({ ...prev, open: false })),
+                                  });
+                                  return;
+                                }
+                                
+                                // Show confirmation dialog
+                                setConfirmDialog({
+                                  open: true,
+                                  title: `Submit Ulang Week ${report.weekNumber}`,
+                                  description: `Apakah Anda yakin ingin submit ulang Week ${report.weekNumber}?\n\nTotal entries: ${entries.length}\nTotal hours: ${report.totalHours} jam\n\nPastikan semua perubahan sudah disimpan.`,
+                                  onConfirm: async () => {
+                                    try {
+                                      await resubmitWeeklyLog(
+                                        user.id!,
+                                        report.projectId || null,
+                                        report.weekNumber,
+                                        report.reviewerId!,
+                                        profile.full_name!
+                                      );
+                                      setConfirmDialog({
+                                        open: true,
+                                        title: 'Berhasil!',
+                                        description: 'Logbook berhasil disubmit ulang! Menunggu review dari mentor.',
+                                        onConfirm: () => {
+                                          setConfirmDialog(prev => ({ ...prev, open: false }));
+                                          loadReports();
+                                        },
+                                      });
+                                    } catch (e) {
+                                      console.error('Resubmit error:', e);
+                                      setConfirmDialog({
+                                        open: true,
+                                        title: 'Gagal',
+                                        description: 'Gagal submit ulang. Silakan coba lagi.',
+                                        onConfirm: () => setConfirmDialog(prev => ({ ...prev, open: false })),
+                                      });
+                                    }
+                                  },
+                                });
                               }}
                               className="bg-orange-600 hover:bg-orange-700"
                             >
@@ -604,78 +762,65 @@ export default function StatusDanReview() {
                           </div>
 
                           {expandedWeek === report.weekNumber && (
-                            <div className="overflow-x-auto border rounded-lg">
-                              <table className="w-full border-collapse text-sm">
-                                <thead>
-                                  <tr className="bg-gray-50 border-b">
-                                    <th className="px-3 py-2 text-left">Tanggal</th>
-                                    <th className="px-3 py-2 text-left">Mulai</th>
-                                    <th className="px-3 py-2 text-left">Selesai</th>
-                                    <th className="px-3 py-2 text-left">Aktivitas</th>
-                                    <th className="px-3 py-2 text-left w-28">Aksi</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
+                            <div className="space-y-3">
+                              {loadingEntries[report.weekNumber] ? (
+                                <div className="border rounded-lg p-8">
+                                  <div className="animate-pulse space-y-3">
+                                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                                    <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                                  </div>
+                                </div>
+                              ) : (weekEntries[report.weekNumber] || []).length === 0 ? (
+                                <div className="border rounded-lg p-8 text-center">
+                                  <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                  <p className="text-sm text-gray-500">Tidak ada entry untuk minggu ini</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
                                   {(weekEntries[report.weekNumber] || []).map((entry: any) => {
                                     const startHH = toHHMM(entry.start_time);
                                     const endHH = toHHMM(entry.end_time);
+                                    const durationHours = Math.floor((entry.duration_minutes || 0) / 60);
+                                    const durationMins = (entry.duration_minutes || 0) % 60;
+                                    
                                     return (
-                                      <tr key={entry.id} className="border-b align-top">
-                                        <td className="px-3 py-2 whitespace-nowrap">{entry.entry_date}</td>
-                                        <td className="px-3 py-2">
-                                          <Input defaultValue={startHH} type="time" onChange={(e) => {
-                                            entry.__start = e.target.value;
-                                          }} />
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          <Input defaultValue={endHH} type="time" onChange={(e) => {
-                                            entry.__end = e.target.value;
-                                          }} />
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          <textarea
-                                            defaultValue={entry.content || ''}
-                                            onChange={(e) => { entry.__content = e.target.value; }}
-                                            className="w-full min-h-[80px] border rounded p-2"
-                                          />
-                                        </td>
-                                        <td className="px-3 py-2">
+                                      <div 
+                                        key={entry.id} 
+                                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                                      >
+                                        <div className="flex items-start justify-between gap-4">
+                                          <div className="flex-1 space-y-2">
+                                            <div className="flex items-center gap-3 flex-wrap">
+                                              <Badge variant="outline" className="font-mono">
+                                                {entry.entry_date}
+                                              </Badge>
+                                              <div className="flex items-center gap-1 text-sm text-gray-600">
+                                                <Clock className="w-3 h-3" />
+                                                <span>{startHH} - {endHH}</span>
+                                                <span className="text-gray-400">•</span>
+                                                <span className="font-medium">
+                                                  {durationHours}h {durationMins}m
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <p className="text-sm text-gray-600 line-clamp-3">
+                                              {entry.content || '-'}
+                                            </p>
+                                          </div>
                                           <Button
                                             size="sm"
-                                            disabled={!!savingMap[entry.id]}
-                                            onClick={async () => {
-                                              try {
-                                                setSavingMap(prev => ({ ...prev, [entry.id]: true }));
-                                                const newStart = entry.__start || startHH;
-                                                const newEnd = entry.__end || endHH;
-                                                const newContent = entry.__content ?? entry.content;
-                                                const isoStart = toISOWithOffset(entry.entry_date, newStart);
-                                                const isoEnd = toISOWithOffset(entry.entry_date, newEnd);
-                                                const [sh, sm] = newStart.split(':').map(Number);
-                                                const [eh, em] = newEnd.split(':').map(Number);
-                                                const duration = Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
-                                                await updateEntry(entry.id, {
-                                                  content: newContent,
-                                                  start_time: isoStart as any,
-                                                  end_time: isoEnd as any,
-                                                  duration_minutes: duration,
-                                                } as any);
-                                                await loadWeekEntries(report.weekNumber, report.projectId);
-                                              } catch (err) {
-                                                alert('Gagal menyimpan perubahan');
-                                              } finally {
-                                                setSavingMap(prev => ({ ...prev, [entry.id]: false }));
-                                              }
-                                            }}
+                                            variant="outline"
+                                            onClick={() => handleEditEntry(entry)}
                                           >
-                                            Simpan
+                                            Edit
                                           </Button>
-                                        </td>
-                                      </tr>
+                                        </div>
+                                      </div>
                                     );
                                   })}
-                                </tbody>
-                              </table>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -688,6 +833,36 @@ export default function StatusDanReview() {
           </>
         )}
       </div>
+
+      {/* Edit Entry Dialog */}
+      <EditLogbookEntryDialog
+        entry={editingEntry}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSave={handleSaveEntry}
+      />
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line">
+              {confirmDialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDialog(prev => ({ ...prev, open: false }))}>
+              {confirmDialog.title.includes('Submit Ulang') ? 'Batal' : 'OK'}
+            </AlertDialogCancel>
+            {confirmDialog.title.includes('Submit Ulang') && (
+              <AlertDialogAction onClick={confirmDialog.onConfirm} className="bg-orange-600 hover:bg-orange-700">
+                Ya, Submit Ulang
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

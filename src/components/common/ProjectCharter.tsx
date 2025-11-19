@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/supabase';
 import type { Profile } from '@/lib/api/types';
+import { ROLES } from '@/utils/roleConfig';
 import {
   uploadProjectCharter,
   deleteProjectCharter,
@@ -214,7 +215,7 @@ const ProjectCharter: React.FC<ProjectCharterProps> = ({
   // PERMISSIONS CHECK
   // =========================================
 
-  const canEdit = editable && currentUser?.role === 'admin';
+  const canEdit = editable && currentUser?.role === ROLES.ADMIN;
 
   // =========================================
   // RENDER

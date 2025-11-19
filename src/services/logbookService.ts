@@ -15,8 +15,8 @@ import type {
 // ======================================================
 // FEATURE FLAGS
 // ======================================================
-// Weekly logbook feature - Temporary implementation using localStorage
-// Until database schema supports weekly_logbook_name field
+// Weekly logbook feature uses category field in logbook_entries
+// Workflow: draft → weekly_X_log_compile → weekly_X_log_submitted → weekly_X_log_approved/rejected
 export const WEEKLY_FEATURE_ENABLED = true;
 
 // =========================================
@@ -316,6 +316,8 @@ export async function updateEntry(
       updated_at: new Date().toISOString()
     };
 
+    console.log('Updating entry:', id, 'with data:', updateData);
+
     const { data, error } = await supabase
       .from('logbook_entries')
       .update(updateData)
@@ -323,7 +325,10 @@ export async function updateEntry(
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase update error:', error);
+      throw error;
+    }
     if (!data) throw new Error('Failed to update entry');
     
     return data;
@@ -349,175 +354,53 @@ export async function deleteEntry(id: string): Promise<void> {
 }
 
 // =========================================
-// WEEKLY LOGBOOK OPERATIONS (TEMPORARY IMPLEMENTATION)
+// WEEKLY LOGBOOK OPERATIONS
 // =========================================
-// NOTE: Using localStorage as temporary solution until database schema supports weekly_logbook_name
-// Data stored in browser localStorage with key 'weeklyLogbooks'
+// Weekly logbooks are tracked via category field in logbook_entries table
+// Category workflow: draft → weekly_{N}_log_compile → weekly_{N}_log_submitted → weekly_{N}_log_approved/rejected
+// All data stored in Supabase database (no client-side storage)
 
-const WEEKLY_STORAGE_KEY = 'weeklyLogbooks';
-
-interface StoredWeeklyLogbook {
-  name: string;
-  entryIds: string[];
-  createdAt: string;
-}
-
-/**
- * Get stored weekly logbooks from localStorage
- */
-function getStoredWeeklyLogbooks(): StoredWeeklyLogbook[] {
-  try {
-    const stored = localStorage.getItem(WEEKLY_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Error reading weekly logbooks from localStorage:', error);
-    return [];
-  }
-}
+// NOTE: Functions below are DEPRECATED and kept for backward compatibility only
+// Use logbookReviewService.ts functions for weekly workflow instead:
+// - compileWeeklyLog()
+// - submitWeeklyLog()
+// - approveWeeklyLog()
+// - rejectWeeklyLog()
 
 /**
- * Save weekly logbooks to localStorage
- */
-function saveStoredWeeklyLogbooks(logbooks: StoredWeeklyLogbook[]): void {
-  try {
-    localStorage.setItem(WEEKLY_STORAGE_KEY, JSON.stringify(logbooks));
-  } catch (error) {
-    console.error('Error saving weekly logbooks to localStorage:', error);
-    throw new Error('Failed to save weekly logbook data');
-  }
-}
-
-/**
- * TEMPORARY: Save draft entries as a weekly logbook using localStorage
- * This is a client-side only solution until database schema is updated
+ * @deprecated Use logbookReviewService.compileWeeklyLog() instead
+ * Weekly logbooks are now managed via database category field
  */
 export async function saveWeeklyLogbook(
-  weekName: string,
-  entryIds: string[]
+  _weekName: string,
+  _entryIds: string[]
 ): Promise<void> {
-  try {
-    if (!weekName || weekName.trim().length === 0) {
-      throw new Error('Week name is required');
-    }
-
-    if (!entryIds || entryIds.length === 0) {
-      throw new Error('No entries to save');
-    }
-
-    // Get existing weekly logbooks
-    const stored = getStoredWeeklyLogbooks();
-
-    // Check if week name already exists
-    const existingIndex = stored.findIndex(w => w.name === weekName);
-    if (existingIndex >= 0) {
-      throw new Error(`Logbook dengan nama "${weekName}" sudah ada. Gunakan nama lain.`);
-    }
-
-    // Add new weekly logbook
-    stored.push({
-      name: weekName,
-      entryIds,
-      createdAt: new Date().toISOString(),
-    });
-
-    // Save to localStorage
-    saveStoredWeeklyLogbooks(stored);
-
-    console.log(`✅ Weekly logbook "${weekName}" saved with ${entryIds.length} entries (localStorage)`);
-  } catch (error) {
-    return handleServiceError(error, 'Save weekly logbook');
-  }
+  console.warn('saveWeeklyLogbook is deprecated. Use compileWeeklyLog from logbookReviewService instead.');
+  throw new Error('This function is deprecated. Use logbookReviewService.compileWeeklyLog() instead.');
 }
 
 /**
- * TEMPORARY: Get all weekly logbooks from localStorage and fetch their entries
+ * @deprecated Weekly logbooks are managed via category field, query logbook_entries directly
  */
 export async function getWeeklyLogbooks(): Promise<WeeklyLogbook[]> {
-  try {
-    const stored = getStoredWeeklyLogbooks();
-    
-    if (stored.length === 0) {
-      return [];
-    }
-
-    // Fetch all entries from database
-    const allEntries = await getAllEntries();
-
-    // Build weekly logbooks with their entries
-    const weeklyLogbooks: WeeklyLogbook[] = stored.map(weekly => {
-      // Filter entries that belong to this weekly logbook
-      const entries = allEntries.filter(entry => 
-        weekly.entryIds.includes(entry.id)
-      );
-
-      // Calculate date range
-      const dates = entries.map(e => e.entry_date).sort();
-      const startDate = dates[0] || '';
-      const endDate = dates[dates.length - 1] || '';
-
-      return {
-        name: weekly.name,
-        startDate,
-        endDate,
-        entriesCount: entries.length,
-        entries,
-      };
-    });
-
-    // Sort by creation date (newest first)
-    return weeklyLogbooks.sort((a, b) => {
-      const aStored = stored.find(s => s.name === a.name);
-      const bStored = stored.find(s => s.name === b.name);
-      return new Date(bStored?.createdAt || 0).getTime() - new Date(aStored?.createdAt || 0).getTime();
-    });
-  } catch (error) {
-    console.error('Error getting weekly logbooks:', error);
-    return [];
-  }
+  console.warn('getWeeklyLogbooks is deprecated. Query logbook_entries with category filter instead.');
+  return [];
 }
 
 /**
- * TEMPORARY: Delete a weekly logbook from localStorage
- * Note: This does NOT delete the actual entries from database
+ * @deprecated Weekly logbooks are managed via category field
  */
-export async function deleteWeeklyLogbook(weekName: string): Promise<number> {
-  try {
-    const stored = getStoredWeeklyLogbooks();
-    const logbook = stored.find(w => w.name === weekName);
-
-    if (!logbook) {
-      throw new Error(`Logbook "${weekName}" tidak ditemukan`);
-    }
-
-    // Remove from localStorage
-    const filtered = stored.filter(w => w.name !== weekName);
-    saveStoredWeeklyLogbooks(filtered);
-
-    console.log(`✅ Weekly logbook "${weekName}" deleted from localStorage`);
-    return logbook.entryIds.length;
-  } catch (error) {
-    return handleServiceError(error, 'Delete weekly logbook');
-  }
+export async function deleteWeeklyLogbook(_weekName: string): Promise<number> {
+  console.warn('deleteWeeklyLogbook is deprecated. Update entry categories directly.');
+  throw new Error('This function is deprecated. Update entry categories in database instead.');
 }
 
 /**
- * TEMPORARY: Get entries for a specific weekly logbook
+ * @deprecated Query logbook_entries by category instead
  */
 export async function getWeeklyLogbookEntries(
-  weekName: string
+  _weekName: string
 ): Promise<LogbookEntry[]> {
-  try {
-    const stored = getStoredWeeklyLogbooks();
-    const logbook = stored.find(w => w.name === weekName);
-
-    if (!logbook) {
-      throw new Error(`Logbook "${weekName}" tidak ditemukan`);
-    }
-
-    // Fetch all entries and filter
-    const allEntries = await getAllEntries();
-    return allEntries.filter(entry => logbook.entryIds.includes(entry.id));
-  } catch (error) {
-    return handleServiceError(error, 'Get weekly logbook entries');
-  }
+  console.warn('getWeeklyLogbookEntries is deprecated. Query by category field instead.');
+  return [];
 }

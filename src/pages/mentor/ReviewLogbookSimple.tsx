@@ -212,7 +212,7 @@ export default function ReviewLogbookSimple() {
                 <div>
                   <p className="text-sm font-medium mb-2">Activity Description:</p>
                   <p className="text-sm text-muted-foreground">
-                    {entry.activity_description}
+                    {entry.content}
                   </p>
                 </div>
 

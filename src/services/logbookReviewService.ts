@@ -9,14 +9,14 @@ import { notifyLogbookReview, notifyMentorLogbookSubmission } from './notificati
 
 export async function compileWeeklyLog(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   weekNumber: number,
   dailyEntryIds: string[]
 ): Promise<LogbookEntry[]> {
   try {
     const newCategory = `weekly_${weekNumber}_log_compile`;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('logbook_entries')
       .update({
         category: newCategory,
@@ -24,9 +24,16 @@ export async function compileWeeklyLog(
       })
       .in('id', dailyEntryIds)
       .eq('user_id', userId)
-      .eq('project_id', projectId)
-      .eq('category', 'draft') // Only compile draft entries
-      .select();
+      .eq('category', 'draft'); // Only compile draft entries
+
+    // Optional project_id filter
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    } else {
+      query = query.is('project_id', null);
+    }
+
+    const { data, error } = await query.select();
 
     if (error) throw error;
     return (data || []) as LogbookEntry[];
@@ -43,28 +50,42 @@ export async function compileWeeklyLog(
 
 export async function submitWeeklyLog(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   weekNumber: number,
   mentorId: string,
   internName: string
 ): Promise<LogbookEntry[]> {
   try {
     // First check if there are compiled entries
-    const { data: compiledEntries } = await supabase
+    let compiledQuery = supabase
       .from('logbook_entries')
       .select('id')
       .eq('user_id', userId)
-      .eq('project_id', projectId)
       .eq('category', `weekly_${weekNumber}_log_compile`);
+    
+    if (projectId) {
+      compiledQuery = compiledQuery.eq('project_id', projectId);
+    } else {
+      compiledQuery = compiledQuery.is('project_id', null);
+    }
+
+    const { data: compiledEntries } = await compiledQuery;
 
     // If no compiled entries, look for draft entries and compile them first
     if (!compiledEntries || compiledEntries.length === 0) {
-      const { data: draftEntries } = await supabase
+      let draftQuery = supabase
         .from('logbook_entries')
         .select('id')
         .eq('user_id', userId)
-        .eq('project_id', projectId)
         .eq('category', 'draft');
+      
+      if (projectId) {
+        draftQuery = draftQuery.eq('project_id', projectId);
+      } else {
+        draftQuery = draftQuery.is('project_id', null);
+      }
+
+      const { data: draftEntries } = await draftQuery;
 
       if (draftEntries && draftEntries.length > 0) {
         // Auto-compile draft entries
@@ -77,7 +98,7 @@ export async function submitWeeklyLog(
     const currentCategory = `weekly_${weekNumber}_log_compile`;
     const newCategory = `weekly_${weekNumber}_log_submitted`;
 
-    const { data, error } = await supabase
+    let submitQuery = supabase
       .from('logbook_entries')
       .update({
         category: newCategory,
@@ -86,9 +107,15 @@ export async function submitWeeklyLog(
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
-      .eq('project_id', projectId)
-      .eq('category', currentCategory)
-      .select();
+      .eq('category', currentCategory);
+
+    if (projectId) {
+      submitQuery = submitQuery.eq('project_id', projectId);
+    } else {
+      submitQuery = submitQuery.is('project_id', null);
+    }
+
+    const { data, error } = await submitQuery.select();
 
     if (error) throw error;
 
@@ -114,7 +141,7 @@ export async function submitWeeklyLog(
 
 export async function approveWeeklyLog(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   weekNumber: number,
   reviewerId: string,
   comment?: string
@@ -123,7 +150,7 @@ export async function approveWeeklyLog(
     const currentCategory = `weekly_${weekNumber}_log_submitted`;
     const newCategory = `weekly_${weekNumber}_log_approved`;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('logbook_entries')
       .update({
         category: newCategory,
@@ -134,9 +161,15 @@ export async function approveWeeklyLog(
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
-      .eq('project_id', projectId)
-      .eq('category', currentCategory)
-      .select();
+      .eq('category', currentCategory);
+
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    } else {
+      query = query.is('project_id', null);
+    }
+
+    const { data, error } = await query.select();
 
     if (error) throw error;
 
@@ -171,26 +204,33 @@ export async function approveWeeklyLog(
 
 export async function rejectWeeklyLog(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   weekNumber: number,
   reviewerId: string,
   comment: string
 ): Promise<LogbookEntry[]> {
   try {
     // Get current rejection count for this week
-    const { data: existingRejections } = await supabase
+    let rejectionQuery = supabase
       .from('logbook_entries')
       .select('category')
       .eq('user_id', userId)
-      .eq('project_id', projectId)
       .like('category', `weekly_${weekNumber}_log_rejected_%`);
+
+    if (projectId) {
+      rejectionQuery = rejectionQuery.eq('project_id', projectId);
+    } else {
+      rejectionQuery = rejectionQuery.is('project_id', null);
+    }
+
+    const { data: existingRejections } = await rejectionQuery;
 
     const rejectionCount = (existingRejections?.length || 0) + 1;
 
     const currentCategory = `weekly_${weekNumber}_log_submitted`;
     const newCategory = `weekly_${weekNumber}_log_rejected_${rejectionCount}`;
 
-    const { data, error } = await supabase
+    let updateQuery = supabase
       .from('logbook_entries')
       .update({
         category: newCategory,
@@ -202,9 +242,15 @@ export async function rejectWeeklyLog(
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
-      .eq('project_id', projectId)
-      .eq('category', currentCategory)
-      .select();
+      .eq('category', currentCategory);
+
+    if (projectId) {
+      updateQuery = updateQuery.eq('project_id', projectId);
+    } else {
+      updateQuery = updateQuery.is('project_id', null);
+    }
+
+    const { data, error } = await updateQuery.select();
 
     if (error) throw error;
 
@@ -236,7 +282,7 @@ export async function rejectWeeklyLog(
  */
 export async function resubmitWeeklyLog(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   weekNumber: number,
   mentorId: string,
   internName: string
@@ -244,7 +290,7 @@ export async function resubmitWeeklyLog(
   try {
     const newCategory = `weekly_${weekNumber}_log_submitted`;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('logbook_entries')
       .update({
         category: newCategory,
@@ -254,9 +300,15 @@ export async function resubmitWeeklyLog(
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
-      .eq('project_id', projectId)
-      .like('category', `weekly_${weekNumber}_log_rejected_%`)
-      .select();
+      .like('category', `weekly_${weekNumber}_log_rejected_%`);
+
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    } else {
+      query = query.is('project_id', null);
+    }
+
+    const { data, error } = await query.select();
 
     if (error) throw error;
 
@@ -281,17 +333,24 @@ export async function resubmitWeeklyLog(
  */
 export async function getWeeklyLogs(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   weekNumber: number
 ): Promise<LogbookEntry[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('logbook_entries')
       .select('*')
       .eq('user_id', userId)
-      .eq('project_id', projectId)
       .or(`category.eq.draft,category.like.weekly_${weekNumber}_log_%`)
       .order('created_at', { ascending: true });
+
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    } else {
+      query = query.is('project_id', null);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     return (data || []) as LogbookEntry[];
@@ -403,7 +462,7 @@ export async function getRejectedLogs(
  */
 export async function getWeekReviewHistory(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   weekNumber: number
 ): Promise<{
   submitted: LogbookEntry[];
@@ -412,13 +471,20 @@ export async function getWeekReviewHistory(
   rejectionCount: number;
 }> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('logbook_entries')
       .select('*')
       .eq('user_id', userId)
-      .eq('project_id', projectId)
       .like('category', `weekly_${weekNumber}_log_%`)
       .order('updated_at', { ascending: true });
+
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    } else {
+      query = query.is('project_id', null);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -521,18 +587,24 @@ export async function getUserLogbookStats(userId: string): Promise<{
  */
 export async function isWeekLocked(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   weekNumber: number
 ): Promise<boolean> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('logbook_entries')
       .select('is_approved, is_submitted')
       .eq('user_id', userId)
-      .eq('project_id', projectId)
       .like('category', `weekly_${weekNumber}_log_%`)
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    if (projectId) {
+      query = query.eq('project_id', projectId);
+    } else {
+      query = query.is('project_id', null);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       console.error('isWeekLocked query error:', error);
@@ -565,7 +637,7 @@ export async function getEntryReviews(entryId: string): Promise<{
       .from('reviews')
       .select(`
         *,
-        reviewer:profiles!reviews_reviewer_id_fkey(full_name, email)
+        reviewer:profiles!reviews_reviewer_id_fkey1(full_name, email)
       `)
       .eq('entry_id', entryId)
       .order('created_at', { ascending: false });
@@ -583,7 +655,7 @@ export async function getEntryReviews(entryId: string): Promise<{
  */
 export async function getWeekReviews(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   weekNumber: number
 ): Promise<{
   id: string;
@@ -595,12 +667,19 @@ export async function getWeekReviews(
 }[]> {
   try {
     // First get all entry IDs for this week
-    const { data: entries } = await supabase
+    let entriesQuery = supabase
       .from('logbook_entries')
       .select('id')
       .eq('user_id', userId)
-      .eq('project_id', projectId)
       .like('category', `weekly_${weekNumber}_log_%`);
+
+    if (projectId) {
+      entriesQuery = entriesQuery.eq('project_id', projectId);
+    } else {
+      entriesQuery = entriesQuery.is('project_id', null);
+    }
+
+    const { data: entries } = await entriesQuery;
 
     if (!entries || entries.length === 0) return [];
 
@@ -611,7 +690,7 @@ export async function getWeekReviews(
       .from('reviews')
       .select(`
         *,
-        reviewer:profiles!reviews_reviewer_id_fkey(full_name, email)
+        reviewer:profiles!reviews_reviewer_id_fkey1(full_name, email)
       `)
       .in('entry_id', entryIds)
       .order('created_at', { ascending: false });

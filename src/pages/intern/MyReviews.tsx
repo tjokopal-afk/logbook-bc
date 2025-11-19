@@ -261,7 +261,7 @@ export default function MyReviews() {
                           {format(new Date(review.entry.entry_date), 'dd MMM yyyy', { locale: idLocale })}
                         </p>
                         <p className="text-sm text-gray-700 line-clamp-2">
-                          {review.entry.activity_description}
+                          {review.entry.content}
                         </p>
                       </div>
                     </div>

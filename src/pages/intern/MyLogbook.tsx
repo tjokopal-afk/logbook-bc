@@ -10,6 +10,7 @@ import { FileText, XCircle, Calendar } from 'lucide-react';
 import { LogbookDaily } from '@/components/intern/LogbookDaily';
 import { LogbookWeekly } from '@/components/intern/LogbookWeekly';
 import { supabase } from '@/supabase';
+import { PROJECT_ROLES } from '@/utils/roleConfig';
 
 export default function MyLogbook() {
   const { user, profile } = useAuth();
@@ -28,7 +29,7 @@ export default function MyLogbook() {
         .from('project_participants')
         .select('project_id, projects!inner(id, name)')
         .eq('user_id', user.id)
-        .eq('role_in_project', 'member')
+        .eq('role_in_project', PROJECT_ROLES.MEMBER)
         .limit(1)
         .maybeSingle();
       if (error) {
@@ -39,14 +40,6 @@ export default function MyLogbook() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const project = (participation as any).projects;
         setProjectId(project.id);
-        const { data: mentorData } = await supabase
-          .from('project_participants')
-          .select('user_id')
-          .eq('project_id', project.id)
-          .eq('role_in_project', 'pic')
-          .limit(1)
-          .maybeSingle();
-        if (mentorData) setMentorId(mentorData.user_id);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -54,6 +47,13 @@ export default function MyLogbook() {
       setLoadingProject(false);
     }
   }, [user]);
+
+  // Load mentor from profile (not from project)
+  useEffect(() => {
+    if (profile?.mentor) {
+      setMentorId(profile.mentor);
+    }
+  }, [profile]);
 
   const loadSubmittedWeeks = useCallback(async () => {
     if (!user) return;
@@ -118,11 +118,20 @@ export default function MyLogbook() {
                   </CardContent>
                 </Card>
               ) : (
-                <LogbookDaily 
-                  userId={user.id} 
-                  projectId={projectId}
-                  startDate={profile?.start_date}
-                />
+                <>
+                  {!projectId && (
+                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        ℹ️ <strong>No project assigned.</strong> You can still create logbook entries. They will be stored without project association.
+                      </p>
+                    </div>
+                  )}
+                  <LogbookDaily 
+                    userId={user.id} 
+                    projectId={projectId || undefined}
+                    startDate={profile?.start_date}
+                  />
+                </>
               )}
             </TabsContent>
 
@@ -178,24 +187,18 @@ export default function MyLogbook() {
                     <p className="text-gray-600">Loading project info...</p>
                   </CardContent>
                 </Card>
-              ) : !projectId ? (
-                <Card>
-                  <CardContent className="py-12 text-center text-gray-500">
-                    <XCircle className="h-12 w-12 mx-auto mb-4" />
-                    <p>No Project Assigned</p>
-                  </CardContent>
-                </Card>
               ) : !mentorId ? (
                 <Card>
                   <CardContent className="py-12 text-center text-gray-500">
                     <XCircle className="h-12 w-12 mx-auto mb-4" />
                     <p>No Mentor Assigned</p>
+                    <p className="text-xs text-gray-400 mt-2">You can still create logbook entries without a mentor, but cannot submit for review.</p>
                   </CardContent>
                 </Card>
               ) : (
                 <LogbookWeekly 
                   userId={user.id} 
-                  projectId={projectId} 
+                  projectId={projectId || null}
                   weekNumber={selectedWeek} 
                   mentorId={mentorId} 
                   internName={profile?.full_name || user.email || 'Intern'}

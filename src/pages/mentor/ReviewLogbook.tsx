@@ -27,6 +27,7 @@ import {
   approveWeeklyLog,
   rejectWeeklyLog
 } from '@/services/logbookReviewService';
+import { PROJECT_ROLES } from '@/utils/roleConfig';
 import type { LogbookEntry } from '@/lib/api/types';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -83,7 +84,24 @@ export default function ReviewLogbook() {
         setCurrentUserId(user.id);
       }
 
-      // Get all submitted weekly logs with user and project info
+      // Step 1: Get mentor's projects (where mentor is PIC)
+      const { data: mentorProjects, error: projError } = await supabase
+        .from('project_participants')
+        .select('project_id')
+        .eq('user_id', user?.id)
+        .eq('role_in_project', PROJECT_ROLES.PIC);  // Only get projects where mentor is PIC
+
+      if (projError) throw projError;
+
+      const mentorProjectIds = (mentorProjects || []).map((p: { project_id: string }) => p.project_id);
+
+      if (mentorProjectIds.length === 0) {
+        console.log('No projects assigned to this mentor');
+        setReports([]);
+        return;
+      }
+
+      // Step 2: Get submitted weekly logs only from mentor's projects with user and project info
       const { data, error } = await supabase
         .from('logbook_entries')
         .select(`
@@ -91,6 +109,7 @@ export default function ReviewLogbook() {
           user:users!logbook_entries_user_id_fkey(full_name, email, avatar_url),
           project:projects!logbook_entries_project_id_fkey(name)
         `)
+        .in('project_id', mentorProjectIds)  // Filter by mentor's projects
         .like('category', 'weekly_%')
         .order('created_at', { ascending: false });
 

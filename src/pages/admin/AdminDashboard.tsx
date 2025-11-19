@@ -72,14 +72,17 @@ export default function AdminDashboard() {
           admins: admins || 0,
         });
 
+        // Count daily logbook entries (category = 'daily')
         const { count: daily } = await supabase
           .from('logbook_entries')
-          .select('*', { count: 'exact', head: true });
-
-        const { count: weeklyPending } = await supabase
-          .from('logbook_weekly')
           .select('*', { count: 'exact', head: true })
-          .eq('reviewed', false);
+          .eq('category', 'daily');
+
+        // Count pending weekly submissions (category contains '_log_submitted')
+        const { count: weeklyPending } = await supabase
+          .from('logbook_entries')
+          .select('*', { count: 'exact', head: true })
+          .like('category', '%_log_submitted');
 
         setLogbookStats({ daily: daily || 0, weeklyPending: weeklyPending || 0 });
       } catch (e) {

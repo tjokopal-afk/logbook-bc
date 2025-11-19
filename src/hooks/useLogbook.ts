@@ -12,7 +12,7 @@ export interface LogbookEntry {
   project_id: string;
   task_id?: string;
   entry_date: string;
-  activity_description: string;
+  content: string;
   attachments?: any[];
   created_at: string;
   updated_at: string;
@@ -65,7 +65,7 @@ export const useLogbook = () => {
             id,
             rating,
             comment,
-            reviewer:profiles!reviews_reviewer_id_fkey(full_name, avatar_url)
+            reviewer:profiles!reviews_reviewer_id_fkey1(full_name, avatar_url)
           )
         `)
         .eq('user_id', user.id)
@@ -155,7 +155,7 @@ export const useLogbook = () => {
     project_id: string;
     task_id?: string;
     entry_date: string;
-    activity_description: string;
+    content: string;
     attachments?: any[];
   }) => {
     if (!user) return { data: null, error: 'Not authenticated' };

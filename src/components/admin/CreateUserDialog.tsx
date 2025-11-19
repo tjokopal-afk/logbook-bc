@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ROLES } from '@/utils/roleConfig';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -49,12 +50,13 @@ export function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateUserDialo
 
   const loadDivisions = async () => {
     try {
+      // Load only department rows (nama not null)
       const { data, error } = await supabase
         .from('departments')
         .select('id, nama, divisi')
-        .not('divisi', 'is', null)
-        .order('nama', { ascending: true })
-        .order('divisi', { ascending: true });
+        .not('nama', 'is', null)
+        .order('divisi', { ascending: true })
+        .order('nama', { ascending: true });
 
       if (error) throw error;
       setDivisions(data || []);
@@ -76,7 +78,7 @@ export function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateUserDialo
       return;
     }
 
-    if (formData.password.length < 6) {
+    if (formData.password.length < 5) {
       toast({
         title: 'Validation Error',
         description: 'Password must be at least 6 characters',
@@ -165,10 +167,10 @@ export function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateUserDialo
               id="password"
               type="password"
               required
-              minLength={6}
+              minLength={5}
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="Min. 6 characters"
+              placeholder="Min. 5 characters"
             />
           </div>
 
@@ -195,24 +197,25 @@ export function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateUserDialo
               onChange={(e) => setFormData({ ...formData, role: e.target.value as 'intern' | 'mentor' | 'admin' | 'superuser' })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
-              <option value="intern">Intern</option>
-              <option value="mentor">Mentor</option>
-              <option value="admin">Admin</option>
-              <option value="superuser">Superuser</option>
+              {Object.values(ROLES).map((role: string) => (
+                <option key={role} value={role}>
+                  {role.charAt(0).toUpperCase() + role.slice(1)}
+                </option>
+              ))}
             </select>
           </div>
 
           {/* Affiliation */}
           <div>
             <Label htmlFor="affiliation">
-              {formData.role === 'intern' ? 'University' : 'Company'}
+              {formData.role === ROLES.INTERN ? 'University' : 'Company'}
             </Label>
             <Input
               id="affiliation"
               type="text"
               value={formData.affiliation}
               onChange={(e) => setFormData({ ...formData, affiliation: e.target.value })}
-              placeholder={formData.role === 'intern' ? 'e.g., Universitas Indonesia' : 'e.g., PT. Berau Coal'}
+              placeholder={formData.role === ROLES.INTERN ? 'e.g., Universitas Indonesia' : 'e.g., PT. Berau Coal'}
             />
           </div>
 
@@ -228,7 +231,7 @@ export function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateUserDialo
               <option value="">Select division (optional)</option>
               {divisions.map((div) => (
                 <option key={div.id} value={div.id}>
-                  {div.nama} - {div.divisi}
+                  {div.divisi} - {div.nama}
                 </option>
               ))}
             </select>

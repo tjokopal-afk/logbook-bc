@@ -3,7 +3,9 @@
 // Assign intern/mentor to projects
 // =========================================
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router';
+import { ROLES } from '@/utils/roleConfig';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -229,7 +231,7 @@ export default function AssignPartisipan() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-2xl font-bold text-green-600">
-                      {participants.filter((p) => p.user_role === 'intern').length}
+                      {participants.filter((p) => p.user_role === ROLES.INTERN).length}
                     </div>
                     <p className="text-xs text-muted-foreground">Interns</p>
                   </div>
@@ -243,7 +245,7 @@ export default function AssignPartisipan() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-2xl font-bold text-blue-600">
-                      {participants.filter((p) => p.user_role === 'mentor').length}
+                      {participants.filter((p) => p.user_role === ROLES.MENTOR).length}
                     </div>
                     <p className="text-xs text-muted-foreground">Mentors</p>
                   </div>

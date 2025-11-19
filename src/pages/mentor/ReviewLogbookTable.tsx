@@ -19,6 +19,7 @@ import {
   Briefcase
 } from 'lucide-react';
 import { supabase } from '@/supabase';
+import { ROLES } from '@/utils/roleConfig';
 import { format } from 'date-fns';
 import LogbookReviewWeekly from '@/components/mentor/LogbookReviewWeekly';
 
@@ -56,100 +57,107 @@ export default function ReviewLogbookTable() {
   const [selectedSubmission, setSelectedSubmission] = useState<SubmissionItem | null>(null);
 
   const loadSubmissions = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      
       // Get current user (mentor)
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setCurrentUserId(user.id);
       }
-      try {
-        const { data: baseEntries, error: baseErr } = await supabase
-          .from('logbook_entries')
-          .select('id, user_id, project_id, category, created_at, submitted_at, is_submitted, is_approved, is_rejected')
-          .eq('is_submitted', true)
-          .order('submitted_at', { ascending: false });
 
-        if (baseErr) {
-          console.error('Submissions base query error:', {
-            message: (baseErr as any)?.message,
-            details: (baseErr as any)?.details,
-            hint: (baseErr as any)?.hint,
-            code: (baseErr as any)?.code,
-          });
-          setSubmissions([]);
+      // Step 2: Get submissions only from interns assigned to this mentor
+      // Fetch interns where profiles.mentor = current mentor
+      let internIds: string[] = [];
+      if (user?.id) {
+        const { data: internProfiles, error: internErr } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('mentor', user.id)
+          .eq('role', ROLES.INTERN);
+        if (internErr) {
+          console.warn('Error fetching interns for mentor:', internErr);
         } else {
-          const userIds = Array.from(new Set((baseEntries || []).map((e: any) => e.user_id).filter(Boolean)));
-          const projectIds = Array.from(new Set((baseEntries || []).map((e: any) => e.project_id).filter(Boolean)));
-
-          // Fetch profiles (for name/email/start_date)
-          let profilesMap: Record<string, any> = {};
-          if (userIds.length > 0) {
-            const { data: profilesData, error: profErr } = await supabase
-              .from('profiles')
-              .select('id, full_name, email, start_date')
-              .in('id', userIds);
-            if (profErr) {
-              console.warn('Profiles query error:', {
-                message: (profErr as any)?.message,
-                details: (profErr as any)?.details,
-                hint: (profErr as any)?.hint,
-                code: (profErr as any)?.code,
-              });
-            } else {
-              profilesMap = Object.fromEntries((profilesData || []).map((p: any) => [p.id, p]));
-            }
-          }
-
-          // Fetch projects (for name)
-          let projectsMap: Record<string, any> = {};
-          if (projectIds.length > 0) {
-            const { data: projectsData, error: projErr } = await supabase
-              .from('projects')
-              .select('id, name')
-              .in('id', projectIds);
-            if (projErr) {
-              console.warn('Projects query error:', {
-                message: (projErr as any)?.message,
-                details: (projErr as any)?.details,
-                hint: (projErr as any)?.hint,
-                code: (projErr as any)?.code,
-              });
-            } else {
-              projectsMap = Object.fromEntries((projectsData || []).map((p: any) => [p.id, p]));
-            }
-          }
-
-          // Group by user, project, and week - only show latest entry per week
-          const grouped = new Map<string, SubmissionItem>();
-          (baseEntries || []).forEach((entry: any) => {
-            const weekMatch = entry.category?.match(/weekly_(\d+)_/);
-            const weekNumber = weekMatch ? weekMatch[1] : '';
-            const key = `${entry.user_id}_${entry.project_id}_${weekNumber}`;
-            const entryDate = new Date(entry.submitted_at || entry.created_at);
-            const existing = grouped.get(key);
-
-            if (!existing || entryDate > new Date(existing.submitted_at || existing.created_at)) {
-              const profile = profilesMap[entry.user_id];
-              const project = projectsMap[entry.project_id || ''];
-              grouped.set(key, {
-                ...entry,
-                user: profile ? { full_name: profile.full_name, email: profile.email } : undefined,
-                project: project ? { name: project.name } : undefined,
-                profile: profile ? { start_date: profile.start_date } : undefined,
-              } as any);
-            }
-          });
-
-          const submissionsArray = Array.from(grouped.values());
-          console.log('✅ Grouped submissions:', submissionsArray.length);
-          setSubmissions(submissionsArray);
+          internIds = (internProfiles || []).map((p: any) => p.id).filter(Boolean);
         }
-      } catch (fallbackError) {
-        console.error('Submissions pipeline error:', fallbackError);
-        setSubmissions([]);
       }
+
+      if (internIds.length === 0) {
+        // No interns assigned to this mentor — nothing to review
+        setSubmissions([]);
+        return;
+      }
+
+      const { data: baseEntries, error: baseErr } = await supabase
+        .from('logbook_entries')
+        .select('id, user_id, project_id, category, created_at, submitted_at, is_submitted, is_approved, is_rejected')
+        .in('user_id', internIds)
+        .eq('is_submitted', true)
+        .order('submitted_at', { ascending: false });
+
+      if (baseErr) {
+        console.error('Submissions base query error:', baseErr);
+        setSubmissions([]);
+        return;
+      }
+
+      const userIds = Array.from(new Set((baseEntries || []).map((e: { user_id: string }) => e.user_id).filter(Boolean)));
+      const projectIds = Array.from(new Set((baseEntries || []).map((e: { project_id: string }) => e.project_id).filter(Boolean)));
+
+      // Fetch profiles (for name/email/start_date)
+      let profilesMap: Record<string, { id: string; full_name: string; email: string; start_date: string }> = {};
+      if (userIds.length > 0) {
+        const { data: profilesData, error: profErr } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, start_date')
+          .in('id', userIds);
+        if (profErr) {
+          console.warn('Profiles query error:', profErr);
+        } else {
+          profilesMap = Object.fromEntries((profilesData || []).map((p: { id: string; full_name: string; email: string; start_date: string }) => [p.id, p]));
+        }
+      }
+
+      // Fetch projects (for name)
+      let projectsMap: Record<string, { id: string; name: string }> = {};
+      if (projectIds.length > 0) {
+        const { data: projectsData, error: projErr } = await supabase
+          .from('projects')
+          .select('id, name')
+          .in('id', projectIds);
+        if (projErr) {
+          console.warn('Projects query error:', projErr);
+        } else {
+          projectsMap = Object.fromEntries((projectsData || []).map((p: { id: string; name: string }) => [p.id, p]));
+        }
+      }
+
+      // Group by user, project, and week - only show latest entry per week
+      const grouped = new Map<string, SubmissionItem>();
+      (baseEntries || []).forEach((entry: { category: string; user_id: string; project_id: string; submitted_at: string; created_at: string }) => {
+        const weekMatch = entry.category?.match(/weekly_(\d+)_/);
+        const weekNumber = weekMatch ? weekMatch[1] : '';
+        const key = `${entry.user_id}_${entry.project_id}_${weekNumber}`;
+        const entryDate = new Date(entry.submitted_at || entry.created_at);
+        const existing = grouped.get(key);
+
+        if (!existing || entryDate > new Date(existing.submitted_at || existing.created_at)) {
+          const profile = profilesMap[entry.user_id];
+          const project = projectsMap[entry.project_id || ''];
+          grouped.set(key, {
+            ...entry,
+            user: profile ? { full_name: profile.full_name, email: profile.email } : undefined,
+            project: project ? { name: project.name } : undefined,
+            profile: profile ? { start_date: profile.start_date } : undefined,
+          } as SubmissionItem);
+        }
+      });
+
+      const submissionsArray = Array.from(grouped.values());
+      console.log('✅ Grouped submissions:', submissionsArray.length);
+      setSubmissions(submissionsArray);
+    } catch (fallbackError) {
+      console.error('Submissions pipeline error:', fallbackError);
+      setSubmissions([]);
     } finally {
       setLoading(false);
     }

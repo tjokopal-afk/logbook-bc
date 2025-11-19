@@ -14,7 +14,7 @@ export interface Review {
   comment?: string;
   created_at: string;
   updated_at: string;
-  reviewer?: {
+    reviewer?: {
     full_name: string;
     email: string;
     avatar_url?: string;
@@ -23,7 +23,7 @@ export interface Review {
   entry?: {
     id: string;
     entry_date: string;
-    activity_description: string;
+    content: string;
     user_id: string;
   };
 }
@@ -45,11 +45,11 @@ export const useReviews = () => {
         .from('reviews')
         .select(`
           *,
-          reviewer:profiles!reviews_reviewer_id_fkey(full_name, email, avatar_url, role),
+          reviewer:profiles!reviews_reviewer_id_fkey1(full_name, email, avatar_url, role),
           entry:logbook_entries!reviews_entry_id_fkey(
             id,
             entry_date,
-            activity_description,
+            content,
             user_id
           )
         `)
@@ -85,7 +85,7 @@ export const useReviews = () => {
           entry:logbook_entries!reviews_entry_id_fkey(
             id,
             entry_date,
-            activity_description,
+            content,
             user_id,
             author:profiles!logbook_entries_user_id_fkey(full_name, email, avatar_url)
           )
@@ -119,11 +119,11 @@ export const useReviews = () => {
         .from('reviews')
         .select(`
           *,
-          reviewer:profiles!reviews_reviewer_id_fkey(full_name, email, avatar_url, role),
+          reviewer:profiles!reviews_reviewer_id_fkey1(full_name, email, avatar_url, role),
           entry:logbook_entries!reviews_entry_id_fkey(
             id,
             entry_date,
-            activity_description,
+            content,
             user_id,
             author:profiles!logbook_entries_user_id_fkey(full_name, email, avatar_url)
           )

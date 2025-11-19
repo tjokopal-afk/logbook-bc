@@ -94,7 +94,7 @@ export function EditInternDialog({ isOpen, intern, onClose, onSuccess }: EditInt
     const { data } = await supabase
       .from('departments')
       .select('id, nama, divisi')
-      .not('divisi', 'is', null)  // Only divisions
+      .not('nama', 'is', null)  // Only divisions
       .order('nama', { ascending: true })
       .order('divisi', { ascending: true });
     

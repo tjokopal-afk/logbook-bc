@@ -11,6 +11,14 @@ export const ROLES = {
 
 export type Role = typeof ROLES[keyof typeof ROLES];
 
+// Project participant roles
+export const PROJECT_ROLES = {
+  PIC: 'pic',                 // Person In Charge (usually mentor/lead)
+  MEMBER: 'member'            // Project member (usually intern)
+} as const;
+
+export type ProjectRole = typeof PROJECT_ROLES[keyof typeof PROJECT_ROLES];
+
 // Hierarki permission (dari rendah ke tinggi)
 // intern < mentor < admin < superuser
 

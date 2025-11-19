@@ -70,7 +70,7 @@ export default function DivisiUser() {
     onConfirm: () => {},
   });
 
-  const loadDivisions = useCallback(async () => {
+  const loadDepartments = useCallback(async () => {
     setLoading(true);
     try {
       // Load all rows from departments table
@@ -90,7 +90,7 @@ export default function DivisiUser() {
       if (profileError) throw profileError;
 
       // Map user counts by division ID
-      const userCounts = (profiles || []).reduce((acc: Record<string, number>, profile: { divisi: string | null }) => {
+      const userCounts = (profiles || []).reduce((acc: Record<string, number>, profile) => {
         if (profile.divisi) {
           acc[profile.divisi] = (acc[profile.divisi] || 0) + 1;
         }
@@ -142,130 +142,12 @@ export default function DivisiUser() {
   }, [toast]);
 
   useEffect(() => {
-    loadDivisions();
-  }, [loadDivisions]);
+    loadDepartments();
+  }, [loadDepartments]);
 
-  // ========== DIVISION (Top Level) CRUD ==========
+  // ========== DEPARTMENT (Top Level) CRUD ==========
   
-  const handleCreateDivision = async () => {
-    if (!newDivisionName.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter division name',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('departments')
-        .insert([{
-          divisi: newDivisionName.trim(),  // Division is stored in divisi column
-          nama: null  // Top level division has no department name
-        }]);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'Division created successfully',
-      });
-
-      setCreatingDivision(false);
-      setNewDivisionName('');
-      loadDivisions();
-    } catch (error) {
-      console.error('Error creating division:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to create division',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleUpdateDivision = async (_divisionId: string, divisionName: string) => {
-    if (!editDivisionName.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter division name',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('departments')
-        .update({ divisi: editDivisionName.trim() })
-        .eq('divisi', divisionName);  // Update all rows with this division name
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'Division updated successfully',
-      });
-
-      setEditingDivision(null);
-      setEditDivisionName('');
-      loadDivisions();
-    } catch (error) {
-      console.error('Error updating division:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update division',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleDeleteDivision = async (division: Division) => {
-    if (division.departments.length > 0) {
-      toast({
-        title: 'Cannot Delete',
-        description: `This division has ${division.departments.length} department(s). Please delete them first.`,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Show confirmation dialog
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Delete Division',
-      description: `Are you sure you want to delete "${division.name}"? This action cannot be undone.`,
-      onConfirm: async () => {
-        try {
-          const { error } = await supabase
-            .from('departments')
-            .delete()
-            .eq('divisi', division.name);
-
-          if (error) throw error;
-
-          toast({
-            title: 'Success',
-            description: 'Division deleted successfully',
-          });
-
-          loadDivisions();
-        } catch (error) {
-          console.error('Error deleting division:', error);
-          toast({
-            title: 'Error',
-            description: 'Failed to delete division',
-            variant: 'destructive',
-          });
-        }
-      },
-    });
-  };
-
-  // ========== DEPARTMENT (Sub Level) CRUD ==========
-
-  const handleCreateDepartment = async (divisionName: string) => {
+  const handleCreateDepartment = async () => {
     if (!newDepartmentName.trim()) {
       toast({
         title: 'Error',
@@ -276,12 +158,11 @@ export default function DivisiUser() {
     }
 
     try {
-      // Create new department under the specified division
       const { error } = await supabase
         .from('departments')
         .insert([{
-          divisi: divisionName,
-          nama: newDepartmentName.trim()
+          nama: newDepartmentName.trim(),
+          divisi: null  // Top level department has no divisi
         }]);
 
       if (error) throw error;
@@ -291,9 +172,9 @@ export default function DivisiUser() {
         description: 'Department created successfully',
       });
 
-      setCreatingDepartment(null);
+      setCreatingDepartment(false);
       setNewDepartmentName('');
-      loadDivisions();
+      loadDepartments();
     } catch (error) {
       console.error('Error creating department:', error);
       toast({
@@ -304,7 +185,7 @@ export default function DivisiUser() {
     }
   };
 
-  const handleUpdateDepartment = async (departmentId: string) => {
+  const handleUpdateDepartment = async (deptId: string) => {
     if (!editDepartmentName.trim()) {
       toast({
         title: 'Error',
@@ -318,7 +199,7 @@ export default function DivisiUser() {
       const { error } = await supabase
         .from('departments')
         .update({ nama: editDepartmentName.trim() })
-        .eq('id', departmentId);
+        .eq('id', deptId);
 
       if (error) throw error;
 
@@ -329,7 +210,7 @@ export default function DivisiUser() {
 
       setEditingDepartment(null);
       setEditDepartmentName('');
-      loadDivisions();
+      loadDepartments();
     } catch (error) {
       console.error('Error updating department:', error);
       toast({
@@ -340,11 +221,11 @@ export default function DivisiUser() {
     }
   };
 
-  const handleDeleteDepartment = async (department: Department) => {
-    if (department.user_count > 0) {
+  const handleDeleteDepartment = async (dept: Department) => {
+    if (dept.divisions.length > 0) {
       toast({
         title: 'Cannot Delete',
-        description: `This department has ${department.user_count} user(s). Please reassign them first.`,
+        description: `This department has ${dept.divisions.length} division(s). Please delete them first.`,
         variant: 'destructive',
       });
       return;
@@ -354,13 +235,13 @@ export default function DivisiUser() {
     setConfirmDialog({
       isOpen: true,
       title: 'Delete Department',
-      description: `Are you sure you want to delete department "${department.name}"? This action cannot be undone.`,
+      description: `Are you sure you want to delete "${dept.name}"? This action cannot be undone.`,
       onConfirm: async () => {
         try {
           const { error } = await supabase
             .from('departments')
             .delete()
-            .eq('id', department.id);
+            .eq('id', dept.id);
 
           if (error) throw error;
 
@@ -369,12 +250,152 @@ export default function DivisiUser() {
             description: 'Department deleted successfully',
           });
 
-          loadDivisions();
+          loadDepartments();
         } catch (error) {
           console.error('Error deleting department:', error);
           toast({
             title: 'Error',
             description: 'Failed to delete department',
+            variant: 'destructive',
+          });
+        }
+      },
+    });
+  };
+
+  // ========== DIVISION (Sub Level) CRUD ==========
+
+  const handleCreateDivision = async (departmentName: string) => {
+    if (!newDivisionName.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter division name',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      // Search for department row where divisi is null
+      const { data: emptyRow, error: searchError } = await supabase
+        .from('departments')
+        .select('*')
+        .eq('nama', departmentName)
+        .is('divisi', null)
+        .maybeSingle();
+
+      if (searchError) throw searchError;
+
+      if (emptyRow) {
+        // Update existing row with division name
+        const { error: updateError } = await supabase
+          .from('departments')
+          .update({ divisi: newDivisionName.trim() })
+          .eq('id', emptyRow.id);
+
+        if (updateError) throw updateError;
+      } else {
+        // Create new row with both nama and divisi
+        const { error: insertError } = await supabase
+          .from('departments')
+          .insert([{
+            nama: departmentName,
+            divisi: newDivisionName.trim()
+          }]);
+
+        if (insertError) throw insertError;
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Division created successfully',
+      });
+
+      setCreatingDivision(null);
+      setNewDivisionName('');
+      loadDepartments();
+    } catch (error) {
+      console.error('Error creating division:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create division',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleUpdateDivision = async (divisionId: string) => {
+    if (!editDivisionName.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter division name',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('departments')
+        .update({ divisi: editDivisionName.trim() })
+        .eq('id', divisionId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Division updated successfully',
+      });
+
+      setEditingDivision(null);
+      setEditDivisionName('');
+      loadDepartments();
+    } catch (error) {
+      console.error('Error updating division:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update division',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteDivision = async (division: Division) => {
+    if (division.user_count > 0) {
+      toast({
+        title: 'Cannot Delete',
+        description: `This division has ${division.user_count} user(s). Please reassign them first.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Show confirmation dialog
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Division',
+      description: `Are you sure you want to delete division "${division.name}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          // Set divisi back to null instead of deleting the row
+          const { error } = await supabase
+            .from('departments')
+            .update({ divisi: null })
+            .eq('id', division.id);
+
+          if (error) throw error;
+
+          toast({
+            title: 'Success',
+            description: 'Division deleted successfully',
+          });
+
+          loadDepartments();
+        } catch (error) {
+          console.error('Error deleting division:', error);
+          toast({
+            title: 'Error',
+            description: 'Failed to delete division',
             variant: 'destructive',
           });
         }
@@ -396,26 +417,26 @@ export default function DivisiUser() {
           </p>
         </div>
         <Button
-          onClick={() => setCreatingDivision(true)}
+          onClick={() => setCreatingDepartment(true)}
           className="bg-purple-600 hover:bg-purple-700"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Create Division
+          Create Department
         </Button>
       </div>
 
-      {/* Create Division Form */}
-      {creatingDivision && (
+      {/* Create Department Form */}
+      {creatingDepartment && (
         <Card className="border-2 border-purple-300">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-lg">Create New Division (Top Level)</h3>
+              <h3 className="font-semibold text-lg">Create New Department (Top Level)</h3>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => {
-                  setCreatingDivision(false);
-                  setNewDivisionName('');
+                  setCreatingDepartment(false);
+                  setNewDepartmentName('');
                 }}
               >
                 <X className="w-4 h-4" />
@@ -423,24 +444,24 @@ export default function DivisiUser() {
             </div>
             <div className="space-y-4">
               <div>
-                <Label>Division Name *</Label>
+                <Label>Department Name *</Label>
                 <Input
-                  value={newDivisionName}
-                  onChange={(e) => setNewDivisionName(e.target.value)}
-                  placeholder="e.g., Engineering, Marketing, HR"
+                  value={newDepartmentName}
+                  onChange={(e) => setNewDepartmentName(e.target.value)}
+                  placeholder="e.g., Operations, Business, Support"
                   className="mt-1"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  This is the top-level division. You can add departments under it later.
+                  This is the top-level department. You can add divisions under it later.
                 </p>
               </div>
               <Button
-                onClick={handleCreateDivision}
-                disabled={!newDivisionName.trim()}
+                onClick={handleCreateDepartment}
+                disabled={!newDepartmentName.trim()}
                 className="w-full bg-purple-600 hover:bg-purple-700"
               >
                 <Save className="w-4 h-4 mr-2" />
-                Create Division
+                Create Department
               </Button>
             </div>
           </CardContent>
@@ -451,65 +472,65 @@ export default function DivisiUser() {
       <div className="grid grid-cols-3 gap-4">
         <Card className="border-l-4 border-l-purple-500">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-purple-600">{divisions.length}</div>
-            <p className="text-xs text-muted-foreground">Divisions</p>
+            <div className="text-2xl font-bold text-purple-600">{departments.length}</div>
+            <p className="text-xs text-muted-foreground">Departments</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-blue-600">
-              {divisions.reduce((sum: number, d: Division) => sum + d.departments.length, 0)}
+              {departments.reduce((sum, d) => sum + d.divisions.length, 0)}
             </div>
-            <p className="text-xs text-muted-foreground">Departments</p>
+            <p className="text-xs text-muted-foreground">Divisions</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-green-500">
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-green-600">
-              {divisions.reduce((sum: number, d: Division) => sum + d.user_count, 0)}
+              {departments.reduce((sum, d) => sum + d.user_count, 0)}
             </div>
             <p className="text-xs text-muted-foreground">Total Users</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Divisions List */}
+      {/* Departments List */}
       {loading ? (
         <div className="flex justify-center items-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
-          <span className="ml-2 text-gray-600">Loading divisions...</span>
+          <span className="ml-2 text-gray-600">Loading departments...</span>
         </div>
-      ) : divisions.length === 0 ? (
+      ) : departments.length === 0 ? (
         <Card>
           <CardContent className="py-12">
             <div className="text-center">
               <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No divisions found</h3>
+              <h3 className="text-lg font-semibold mb-2">No departments found</h3>
               <p className="text-sm text-gray-600 mb-4">
-                Click "Create Division" to add your first division
+                Click "Create Department" to add your first department
               </p>
             </div>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-6">
-          {divisions.map((division) => (
-            <Card key={division.id} className="overflow-hidden">
+          {departments.map((dept) => (
+            <Card key={dept.id} className="overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50 border-b">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3 flex-1">
                     <Building2 className="w-6 h-6 text-purple-600" />
-                    {editingDivision === division.name ? (
+                    {editingDepartment === dept.id ? (
                       <div className="flex items-center gap-2 flex-1">
                         <Input
-                          value={editDivisionName}
-                          onChange={(e) => setEditDivisionName(e.target.value)}
+                          value={editDepartmentName}
+                          onChange={(e) => setEditDepartmentName(e.target.value)}
                           className="max-w-xs"
-                          placeholder="Division name"
+                          placeholder="Department name"
                         />
                         <Button
                           size="sm"
-                          onClick={() => handleUpdateDivision(division.id, division.name)}
+                          onClick={() => handleUpdateDepartment(dept.id)}
                           className="bg-green-600 hover:bg-green-700"
                         >
                           <Save className="w-4 h-4" />
@@ -518,8 +539,8 @@ export default function DivisiUser() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            setEditingDivision(null);
-                            setEditDivisionName('');
+                            setEditingDepartment(null);
+                            setEditDepartmentName('');
                           }}
                         >
                           <X className="w-4 h-4" />
@@ -527,13 +548,13 @@ export default function DivisiUser() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 flex-1">
-                        <CardTitle className="text-xl">{division.name}</CardTitle>
+                        <CardTitle className="text-xl">{dept.name}</CardTitle>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => {
-                            setEditingDivision(division.name);
-                            setEditDivisionName(division.name);
+                            setEditingDepartment(dept.id);
+                            setEditDepartmentName(dept.name);
                           }}
                         >
                           <Edit className="w-4 h-4" />
@@ -541,7 +562,7 @@ export default function DivisiUser() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleDeleteDivision(division)}
+                          onClick={() => handleDeleteDepartment(dept)}
                           className="text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -551,27 +572,27 @@ export default function DivisiUser() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className="bg-blue-100 text-blue-700">
-                      {division.departments.length} Department{division.departments.length !== 1 ? 's' : ''}
+                      {dept.divisions.length} Division{dept.divisions.length !== 1 ? 's' : ''}
                     </Badge>
                     <Badge className="bg-green-100 text-green-700">
-                      {division.user_count} User{division.user_count !== 1 ? 's' : ''}
+                      {dept.user_count} User{dept.user_count !== 1 ? 's' : ''}
                     </Badge>
                   </div>
                 </div>
               </CardHeader>
               
               <CardContent className="pt-6">
-                {/* Create Department Button */}
-                {creatingDepartment === division.name ? (
+                {/* Create Division Button */}
+                {creatingDivision === dept.name ? (
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-gray-900">Create New Department</h3>
+                      <h3 className="font-semibold text-gray-900">Create New Division</h3>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => {
-                          setCreatingDepartment(null);
-                          setNewDepartmentName('');
+                          setCreatingDivision(null);
+                          setNewDivisionName('');
                         }}
                       >
                         <X className="w-4 h-4" />
@@ -579,21 +600,21 @@ export default function DivisiUser() {
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <Label>Department Name *</Label>
+                        <Label>Division Name *</Label>
                         <Input
-                          value={newDepartmentName}
-                          onChange={(e) => setNewDepartmentName(e.target.value)}
-                          placeholder="e.g., Operations, Business, Support"
+                          value={newDivisionName}
+                          onChange={(e) => setNewDivisionName(e.target.value)}
+                          placeholder="e.g., Engineering, Marketing, HR"
                           className="mt-1"
                         />
                       </div>
                       <Button
-                        onClick={() => handleCreateDepartment(division.name)}
-                        disabled={!newDepartmentName.trim()}
+                        onClick={() => handleCreateDivision(dept.name)}
+                        disabled={!newDivisionName.trim()}
                         className="w-full bg-blue-600 hover:bg-blue-700"
                       >
                         <Save className="w-4 h-4 mr-2" />
-                        Create Department
+                        Create Division
                       </Button>
                     </div>
                   </div>
@@ -601,37 +622,37 @@ export default function DivisiUser() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCreatingDepartment(division.name)}
+                    onClick={() => setCreatingDivision(dept.name)}
                     className="mb-4"
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Add Department
+                    Add Division
                   </Button>
                 )}
 
-                {/* Departments List */}
-                {division.departments.length === 0 ? (
+                {/* Divisions List */}
+                {dept.divisions.length === 0 ? (
                   <p className="text-sm text-gray-500 italic py-4">
-                    No departments in this division yet. Click "Add Department" to create one.
+                    No divisions in this department yet. Click "Add Division" to create one.
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {division.departments.map((department) => (
+                    {dept.divisions.map((division) => (
                       <div
-                        key={department.id}
+                        key={division.id}
                         className="flex items-center justify-between p-3 bg-white rounded-lg border hover:shadow-md transition-shadow"
                       >
-                        {editingDepartment === department.id ? (
+                        {editingDivision === division.id ? (
                           <div className="flex items-center gap-3 flex-1">
                             <Input
-                              value={editDepartmentName}
-                              onChange={(e) => setEditDepartmentName(e.target.value)}
-                              placeholder="Department name"
+                              value={editDivisionName}
+                              onChange={(e) => setEditDivisionName(e.target.value)}
+                              placeholder="Division name"
                               className="max-w-xs"
                             />
                             <Button
                               size="sm"
-                              onClick={() => handleUpdateDepartment(department.id)}
+                              onClick={() => handleUpdateDivision(division.id)}
                               className="bg-green-600 hover:bg-green-700"
                             >
                               <Save className="w-4 h-4" />
@@ -640,8 +661,8 @@ export default function DivisiUser() {
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                setEditingDepartment(null);
-                                setEditDepartmentName('');
+                                setEditingDivision(null);
+                                setEditDivisionName('');
                               }}
                             >
                               <X className="w-4 h-4" />
@@ -650,10 +671,10 @@ export default function DivisiUser() {
                         ) : (
                           <>
                             <div className="flex-1">
-                              <h3 className="font-semibold text-gray-900">{department.name}</h3>
+                              <h3 className="font-semibold text-gray-900">{division.name}</h3>
                               <div className="flex items-center gap-1 text-xs text-gray-600 mt-1">
                                 <Users className="w-3 h-3" />
-                                {department.user_count} user{department.user_count !== 1 ? 's' : ''}
+                                {division.user_count} user{division.user_count !== 1 ? 's' : ''}
                               </div>
                             </div>
                             <div className="flex gap-2">
@@ -661,8 +682,8 @@ export default function DivisiUser() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                  setEditingDepartment(department.id);
-                                  setEditDepartmentName(department.name);
+                                  setEditingDivision(division.id);
+                                  setEditDivisionName(division.name);
                                 }}
                               >
                                 <Edit className="w-4 h-4" />
@@ -670,7 +691,7 @@ export default function DivisiUser() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleDeleteDepartment(department)}
+                                onClick={() => handleDeleteDivision(division)}
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
                               >
                                 <Trash2 className="w-4 h-4" />

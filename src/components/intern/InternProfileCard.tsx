@@ -194,13 +194,6 @@ export function InternProfileCard({ profile, onEdit }: InternProfileCardProps) {
               </div>
             )}
 
-            {profile.division && (
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-xs text-gray-600">Division</p>
-                <p className="text-sm font-medium mt-1">{profile.division}</p>
-              </div>
-            )}
-
             {profile.username && (
               <div className="bg-gray-50 p-3 rounded-lg">
                 <p className="text-xs text-gray-600 flex items-center gap-1">

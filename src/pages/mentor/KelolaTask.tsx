@@ -22,8 +22,7 @@ import { CreateTaskDialog } from '@/components/mentor/CreateTaskDialog';
 import { EditTaskDialog } from '@/components/mentor/EditTaskDialog';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-
-// Mock data - replace with real Supabase data
+import { supabase } from '@/supabase';
 interface Task {
   id: string;
   title: string;
@@ -59,82 +58,63 @@ export default function KelolaTask() {
 
   const loadTasks = async () => {
     setLoading(true);
-    // TODO: Replace with real Supabase query
-    const mockTasks: Task[] = [
-      {
-        id: '1',
-        title: 'Implementasi Login Page',
-        description: 'Buat halaman login dengan validasi form dan integrasi API',
-        projectId: 'proj1',
-        projectName: 'Project Alpha',
-        assignedTo: 'intern1',
-        assignedToName: 'John Doe',
-        deadline: '2025-11-15',
-        priority: 'high',
-        progress: 75,
-        status: 'in_progress',
-        createdAt: '2025-10-01'
-      },
-      {
-        id: '2',
-        title: 'Setup Database Schema',
-        description: 'Design dan implementasi database schema untuk user management',
-        projectId: 'proj1',
-        projectName: 'Project Alpha',
-        assignedTo: 'intern1',
-        assignedToName: 'John Doe',
-        deadline: '2025-11-05',
-        priority: 'high',
-        progress: 100,
-        status: 'completed',
-        createdAt: '2025-09-25'
-      },
-      {
-        id: '3',
-        title: 'API Integration',
-        description: 'Integrasi dengan backend API untuk data fetching',
-        projectId: 'proj2',
-        projectName: 'Project Beta',
-        assignedTo: 'intern2',
-        assignedToName: 'Jane Smith',
-        deadline: '2025-11-20',
-        priority: 'medium',
-        progress: 40,
-        status: 'in_progress',
-        createdAt: '2025-10-10'
-      },
-      {
-        id: '4',
-        title: 'Unit Testing',
-        description: 'Buat unit tests untuk semua components',
-        projectId: 'proj1',
-        projectName: 'Project Alpha',
-        assignedTo: 'intern3',
-        assignedToName: 'Ahmad Rizki',
-        deadline: '2025-10-25',
-        priority: 'medium',
-        progress: 20,
-        status: 'overdue',
-        createdAt: '2025-10-05'
-      },
-      {
-        id: '5',
-        title: 'Documentation',
-        description: 'Tulis dokumentasi teknis untuk project',
-        projectId: 'proj3',
-        projectName: 'Project Gamma',
-        assignedTo: 'intern4',
-        assignedToName: 'Sarah Johnson',
-        deadline: '2025-11-30',
-        priority: 'low',
-        progress: 0,
-        status: 'not_started',
-        createdAt: '2025-10-20'
-      }
-    ];
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          assigned_user:profiles!tasks_assigned_to_fkey(id, full_name),
+          project:projects(id, name)
+        `)
+        .order('created_at', { ascending: false });
 
-    setTasks(mockTasks);
-    setLoading(false);
+      if (error) throw error;
+
+      // Transform Supabase data to match Task interface
+      const transformedTasks: Task[] = (data || []).map((task: any) => {
+        // Calculate progress based on task status
+        let progress = 0;
+        let status: Task['status'] = 'not_started';
+        
+        if (task.is_reviewed && !task.is_rejected) {
+          progress = 100;
+          status = 'completed';
+        } else if (task.is_submitted) {
+          progress = 75;
+          status = 'in_progress';
+        } else if (task.project_weight > 0) {
+          progress = task.project_weight * 5; // Scale weight to progress
+          status = 'in_progress';
+        }
+        
+        // Check if overdue
+        if (task.deadline && new Date(task.deadline) < new Date() && status !== 'completed') {
+          status = 'overdue';
+        }
+
+        return {
+          id: task.id,
+          title: task.title,
+          description: task.description || '',
+          projectId: task.project?.id || '',
+          projectName: task.project?.name || 'Unknown Project',
+          assignedTo: task.assigned_to,
+          assignedToName: task.assigned_user?.full_name || 'Unassigned',
+          deadline: task.deadline || '',
+          priority: task.project_weight > 7 ? 'high' : task.project_weight > 4 ? 'medium' : 'low',
+          progress,
+          status,
+          createdAt: task.created_at
+        };
+      });
+
+      setTasks(transformedTasks);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      alert('Failed to load tasks. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const applyFilters = () => {
@@ -158,11 +138,31 @@ export default function KelolaTask() {
     setFilteredTasks(filtered);
   };
 
-  const handleCreateTask = (taskData: any) => {
-    console.log('Creating task:', taskData);
-    // TODO: Send to Supabase
-    setShowCreateDialog(false);
-    loadTasks(); // Reload tasks
+  const handleCreateTask = async (taskData: any) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .insert({
+          title: taskData.title,
+          description: taskData.description,
+          project_id: taskData.projectId,
+          assigned_to: taskData.assignedTo,
+          project_weight: taskData.priority === 'high' ? 8 : taskData.priority === 'medium' ? 5 : 3,
+          deadline: taskData.deadline || null,
+          is_submitted: false,
+          is_reviewed: false,
+          is_rejected: false
+        });
+
+      if (error) throw error;
+      
+      alert('Task created successfully!');
+      setShowCreateDialog(false);
+      loadTasks(); // Reload tasks
+    } catch (error) {
+      console.error('Error creating task:', error);
+      alert('Failed to create task. Please try again.');
+    }
   };
 
   const handleEditTask = (task: Task) => {
@@ -170,25 +170,46 @@ export default function KelolaTask() {
     setShowEditDialog(true);
   };
 
-  const handleUpdateTask = (taskId: string, taskData: any) => {
-    console.log('Updating task:', taskId, taskData);
-    // TODO: Update in Supabase
-    setTasks(prev =>
-      prev.map(t =>
-        t.id === taskId
-          ? { ...t, ...taskData, status: taskData.progress === 100 ? 'completed' : taskData.progress > 0 ? 'in_progress' : 'not_started' }
-          : t
-      )
-    );
-    setShowEditDialog(false);
-    setSelectedTask(null);
+  const handleUpdateTask = async (taskId: string, taskData: any) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          title: taskData.title,
+          description: taskData.description,
+          project_weight: taskData.priority === 'high' ? 8 : taskData.priority === 'medium' ? 5 : 3,
+          deadline: taskData.deadline || null
+        })
+        .eq('id', taskId);
+
+      if (error) throw error;
+
+      alert('Task updated successfully!');
+      setShowEditDialog(false);
+      setSelectedTask(null);
+      loadTasks(); // Reload tasks
+    } catch (error) {
+      console.error('Error updating task:', error);
+      alert('Failed to update task. Please try again.');
+    }
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    if (confirm('Yakin ingin menghapus task ini?')) {
-      console.log('Deleting task:', taskId);
-      // TODO: Delete from Supabase
-      setTasks(prev => prev.filter(t => t.id !== taskId));
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Yakin ingin menghapus task ini?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+
+      alert('Task deleted successfully!');
+      loadTasks(); // Reload tasks
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert('Failed to delete task. Please try again.');
     }
   };
 

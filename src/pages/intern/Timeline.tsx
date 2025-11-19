@@ -118,7 +118,7 @@ export default function Timeline() {
       {/* Internship Timeline Progress */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Clock className="w-5 h-5" />Progres Magang</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Clock className="w-5 h-5" />Progress Magang</CardTitle>
           <CardDescription>
             {start && end ? (
               <>

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ROLES } from '@/utils/roleConfig';
 import { Loader2, User, Lock, Image as ImageIcon, FileText, Upload, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -114,7 +115,7 @@ export function EditUserDialogEnhanced({ isOpen, user, onClose, onSuccess }: Edi
     const { data } = await supabase
       .from('departments')
       .select('id, nama, divisi')
-      .not('divisi', 'is', null)  // Only load rows with divisi filled (actual divisions)
+      .not('nama', 'is', null)  // Only divisions
       .order('nama', { ascending: true })
       .order('divisi', { ascending: true });
     
@@ -268,10 +269,10 @@ export function EditUserDialogEnhanced({ isOpen, user, onClose, onSuccess }: Edi
       return;
     }
 
-    if (passwordData.new_password.length < 6) {
+    if (passwordData.new_password.length < 5) {
       toast({
         title: 'Error',
-        description: 'Password must be at least 6 characters',
+        description: 'Password must be at least 5 characters',
         variant: 'destructive',
       });
       return;
@@ -440,7 +441,7 @@ export function EditUserDialogEnhanced({ isOpen, user, onClose, onSuccess }: Edi
         </DialogHeader>
 
         <Tabs defaultValue="profile" className="w-full">
-          {user.role === 'intern' && (
+          {user.role === ROLES.INTERN && (
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="profile">
                 <User className="w-4 h-4 mr-2" />
@@ -450,7 +451,7 @@ export function EditUserDialogEnhanced({ isOpen, user, onClose, onSuccess }: Edi
               <ImageIcon className="w-4 h-4 mr-2" />
               Photo
             </TabsTrigger>
-              <TabsTrigger value="charter" disabled={user.role !== 'intern'}>
+              <TabsTrigger value="charter" disabled={user.role !== ROLES.INTERN}>
                 <FileText className="w-4 h-4 mr-2" />
                 Charter
               </TabsTrigger>
@@ -460,7 +461,7 @@ export function EditUserDialogEnhanced({ isOpen, user, onClose, onSuccess }: Edi
             </TabsTrigger>
           </TabsList>
             )}
-          {user.role !== 'intern' && (
+          {user.role !== ROLES.INTERN && (
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="profile">
                 <User className="w-4 h-4 mr-2" />
@@ -529,43 +530,44 @@ export function EditUserDialogEnhanced({ isOpen, user, onClose, onSuccess }: Edi
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as 'intern' | 'mentor' | 'admin' | 'superuser' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
-                  <option value="intern">Intern</option>
-                  <option value="mentor">Mentor</option>
-                  <option value="admin">Admin</option>
-                  <option value="superuser">Superuser</option>
+                  {Object.values(ROLES).map((role: string) => (
+                    <option key={role} value={role}>
+                      {role.charAt(0).toUpperCase() + role.slice(1)}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               {/* Affiliation */}
               <div>
                 <Label htmlFor="affiliation">
-                  {formData.role === 'intern' ? 'University' : 'Company'}
+                  {formData.role === ROLES.INTERN ? 'University' : 'Company'}
                 </Label>
                 <Input
                   id="affiliation"
                   type="text"
                   value={formData.affiliation}
                   onChange={(e) => setFormData({ ...formData, affiliation: e.target.value })}
-                  placeholder={formData.role === 'intern' ? 'e.g., Universitas Indonesia' : 'e.g., PT. Berau Coal'}
+                  placeholder={formData.role === ROLES.INTERN ? 'e.g., Universitas Indonesia' : 'e.g., PT. Berau Coal'}
                 />
               </div>
 
               {/* Nomor Induk (NIM/NIP) */}
               <div>
                 <Label htmlFor="nomor_induk">
-                  {formData.role === 'intern' ? 'Student ID (NIM)' : 'Employee ID (NIP)'}
+                  {formData.role === ROLES.INTERN ? 'Student ID (NIM)' : 'Employee ID (NIP)'}
                 </Label>
                 <Input
                   id="nomor_induk"
                   type="text"
                   value={formData.nomor_induk}
                   onChange={(e) => setFormData({ ...formData, nomor_induk: e.target.value })}
-                  placeholder={formData.role === 'intern' ? `e.g., ${getCurrentYear() - 2003}1234567890` : 'e.g., 1234567890'}
+                  placeholder={formData.role === ROLES.INTERN ? `e.g., ${getCurrentYear() - 2003}1234567890` : 'e.g., 1234567890'}
                 />
               </div>
 
               {/* Jurusan (untuk intern) */}
-              {formData.role === 'intern' && (
+              {formData.role === ROLES.INTERN && (
                 <div>
                   <Label htmlFor="jurusan">Major (Jurusan)</Label>
                   <Input
@@ -599,7 +601,7 @@ export function EditUserDialogEnhanced({ isOpen, user, onClose, onSuccess }: Edi
 
 
               {/* Batch (for interns) */}
-              {formData.role === 'intern' && (
+              {formData.role === ROLES.INTERN && (
                 <div>
                   <Label htmlFor="batch">Batch</Label>
                   <select
@@ -620,7 +622,7 @@ export function EditUserDialogEnhanced({ isOpen, user, onClose, onSuccess }: Edi
               )}
 
               {/* Mentor Assignment (for interns) */}
-              {formData.role === 'intern' && (
+              {formData.role === ROLES.INTERN && (
                 <div>
                   <Label htmlFor="mentor">Assigned Mentor</Label>
                   <select
@@ -840,7 +842,7 @@ export function EditUserDialogEnhanced({ isOpen, user, onClose, onSuccess }: Edi
                   value={passwordData.confirm_password}
                   onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
                   placeholder="Re-enter password"
-                  minLength={6}
+                  minLength={5}
                 />
               </div>
 

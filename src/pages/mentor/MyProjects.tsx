@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PROJECT_ROLES } from '@/utils/roleConfig';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -44,7 +45,7 @@ interface Project {
   document_count?: number;
   task_count?: number;
   completion_rate?: number;
-  role_in_project?: 'pic' | 'member';
+  role_in_project?: typeof PROJECT_ROLES.PIC | typeof PROJECT_ROLES.MEMBER;
   task_stats?: {
     total: number;
     completed: number;
@@ -153,7 +154,7 @@ export default function MyProjects() {
               pending: progressDetails.pending,
             },
             completion_rate: progress,
-            role_in_project: roleMap.get(project.id) || 'member',
+            role_in_project: roleMap.get(project.id) || PROJECT_ROLES.MEMBER,
           };
         })
       );
@@ -258,7 +259,7 @@ export default function MyProjects() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              {projects.filter(p => p.role_in_project === 'pic').length}
+              {projects.filter(p => p.role_in_project === PROJECT_ROLES.PIC).length}
             </div>
           </CardContent>
         </Card>
@@ -338,7 +339,7 @@ export default function MyProjects() {
                       <div className="flex items-center gap-3 mb-2">
                         <CardTitle className="text-xl flex items-center gap-2">
                           {project.name}
-                          {project.role_in_project === 'pic' && (
+                          {project.role_in_project === PROJECT_ROLES.PIC && (
                             <Badge className="bg-yellow-500">
                               <Crown className="w-3 h-3 mr-1" />
                               PIC

@@ -173,10 +173,10 @@ export default function AllUsers() {
 
   const stats = {
     total: users.length,
-    intern: users.filter((u) => u.role === 'intern').length,
-    mentor: users.filter((u) => u.role === 'mentor').length,
-    admin: users.filter((u) => u.role === 'admin').length,
-    superuser: users.filter((u) => u.role === 'superuser').length,
+    intern: users.filter((u) => u.role === ROLES.INTERN).length,
+    mentor: users.filter((u) => u.role === ROLES.MENTOR).length,
+    admin: users.filter((u) => u.role === ROLES.ADMIN).length,
+    superuser: users.filter((u) => u.role === ROLES.SUPERUSER).length,
   };
 
   return (

@@ -47,6 +47,7 @@ interface RecentActivityProps {
 const RecentActivity: React.FC<RecentActivityProps> = ({
   userId,
   limit = 10,
+  role,
 }) => {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,9 +62,10 @@ const RecentActivity: React.FC<RecentActivityProps> = ({
       const items: ActivityItem[] = [];
 
       // Fetch recent logbook entries
+      
       let logbookQuery = supabase
         .from('logbook_entries')
-        .select('id, activity_description, created_at, user_id')
+        .select('id, content, created_at, user_id')
         .order('created_at', { ascending: false })
         .limit(5);
 
@@ -85,7 +87,7 @@ const RecentActivity: React.FC<RecentActivityProps> = ({
             id: entry.id,
             type: 'logbook',
             action: 'Created logbook entry',
-            description: entry.activity_description || 'New logbook entry',
+            description: entry.content || 'New logbook entry',
             user: user || undefined,
             timestamp: entry.created_at,
             icon: <FileText className="w-4 h-4" />,
@@ -95,11 +97,31 @@ const RecentActivity: React.FC<RecentActivityProps> = ({
       }
 
       // Fetch recent reviews
+      if (role === 'superuser' || role === 'admin') {
       const { data: reviews } = await supabase
         .from('reviews')
         .select('id, rating, created_at, reviewer_id')
         .order('created_at', { ascending: false })
         .limit(5);
+        }
+      else if (role === 'mentor' && userId) {
+        const { data: reviews } = await supabase
+          .from('reviews')
+          .select('id, rating, created_at, reviewer_id')
+          .where('reviewer_id', '!=', userId)
+          .eq('reviewer_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(5);
+      }
+      else if (role === 'intern' && userId) {
+        const { data: reviews } = await supabase
+          .from('reviews')
+          .select('id, rating, created_at, reviewer_id')
+          .where('reviewer_id', '!=', userId)
+          .eq('reviewer_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(5);
+      }
 
       if (reviews) {
         for (const review of reviews) {

@@ -1,4 +1,5 @@
 import {createClient} from '@supabase/supabase-js'
+import { ROLES } from '@/utils/roleConfig';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -63,6 +64,6 @@ if (supabaseServiceRoleKey && !globalAny.__supabaseAdmin) {
  * @returns Supabase client instance
  */
 export function getSupabaseClient(userRole?: string) {
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === ROLES.ADMIN;
   return isAdmin && supabaseServiceRoleKey ? supabaseAdmin : supabase;
 }

@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ROLES } from '@/utils/roleConfig';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -302,7 +303,7 @@ export default function ProjectDetail() {
           ) : (
             tasks.map((task) => (
               <div key={task.id}>
-                {isUserPIC || currentUserRole === 'admin' ? (
+                {isUserPIC || currentUserRole === ROLES.ADMIN ? (
                   <TaskReview 
                     task={task} 
                     reviewerId={currentUserId}

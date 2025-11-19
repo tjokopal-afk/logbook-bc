@@ -14,14 +14,12 @@ interface Profile {
   signature_url?: string;
   phone?: string;
   company?: string;
-  division?: string;
   project_charter_url?: string;
   start_date?: string;
   end_date?: string;
   last_sign_in_at?: string;
   created_at: string;
   updated_at: string;
-  // Database fields that actually exist
   jurusan?: string;
   divisi?: string | number;
   batch?: number;
@@ -88,7 +86,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           id: data.id,
           email: data.email,
           company: data.company,
-          division: data.division,
+          divisi: data.divisi,
           start_date: data.start_date,
           end_date: data.end_date,
           phone: data.phone,

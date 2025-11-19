@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@/context/AuthContext';
 import RecentActivity from '@/components/common/RecentActivity';
 import { supabase } from '@/supabase';
+import { PROJECT_ROLES } from '@/utils/roleConfig';
 import { Users, Briefcase, FileCheck, CheckCircle2, XCircle, Send, Building2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -35,7 +36,7 @@ export default function MentorDashboard() {
           .from('project_participants')
           .select('project_id, projects!inner(id, status)')
           .eq('user_id', profile.id)
-          .eq('role_in_project', 'pic');
+          .eq('role_in_project', PROJECT_ROLES.PIC);
 
         const projects = (picRows || []).map((r: any) => r.projects).filter(Boolean);
         const uniqueProjects = Array.from(new Map(projects.map((p: any) => [p.id, p])).values());
@@ -47,18 +48,13 @@ export default function MentorDashboard() {
         const upcoming = uniqueProjects.filter((p: any) => p.status === 'upcoming').length;
         setProjectStats({ total, active, completed, upcoming });
 
-        // 2) Unique interns across my projects
-        if (projectIds.length > 0) {
-          const { data: members } = await supabase
-            .from('project_participants')
-            .select('user_id')
-            .in('project_id', projectIds)
-            .eq('role_in_project', 'member');
-          const uniqueMembers = new Set((members || []).map((m: any) => m.user_id));
-          setInternsCount(uniqueMembers.size);
-        } else {
-          setInternsCount(0);
-        }
+        // 2) Interns assigned to this mentor (from profiles.mentor field)
+        const { data: myInterns } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('mentor', profile.id)
+          .eq('role', 'intern');
+        setInternsCount((myInterns || []).length);
 
         // 3) Weekly logs unique counts by status (submitted/approved/rejected)
         if (projectIds.length > 0) {
@@ -181,46 +177,6 @@ export default function MentorDashboard() {
         </Card>
       </div>
 
-      {/* Row 3: Project summaries (moved from Kelola Project) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card onClick={() => navigate('/mentor/projects')} className="cursor-pointer hover:shadow">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2"><Briefcase className="w-5 h-5" />Total Project</CardTitle>
-            <CardDescription>Seluruh proyek</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-purple-600">{globalProjectStats.total}</div>
-          </CardContent>
-        </Card>
-        <Card onClick={() => navigate('/mentor/projects')} className="cursor-pointer hover:shadow">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2"><Briefcase className="w-5 h-5" />Aktif</CardTitle>
-            <CardDescription>Proyek aktif</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-emerald-600">{globalProjectStats.active}</div>
-          </CardContent>
-        </Card>
-        <Card onClick={() => navigate('/mentor/projects')} className="cursor-pointer hover:shadow">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5" />As PIC</CardTitle>
-            <CardDescription>Proyek yang Anda pimpin</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-gray-800">{projectStats.total}</div>
-          </CardContent>
-        </Card>
-        <Card onClick={() => navigate('/mentor/projects')} className="cursor-pointer hover:shadow">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2"><CheckCircle2 className="w-5 h-5" />Complete</CardTitle>
-            <CardDescription>Proyek selesai</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-blue-600">{globalProjectStats.completed}</div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Quick actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card onClick={() => navigate('/mentor/review-logbook')} className="cursor-pointer hover:shadow">
@@ -245,7 +201,7 @@ export default function MentorDashboard() {
 
       {/* Row 4: Recent activity */}
       <div className="grid gap-4 lg:grid-cols-1">
-        <RecentActivity limit={8} />
+        <RecentActivity role="mentor" userId={profile?.id} limit={8} />
       </div>
     </div>
   );

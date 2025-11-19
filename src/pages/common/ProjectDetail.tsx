@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ROLES } from '@/utils/roleConfig';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   AlertDialog, 
@@ -45,6 +46,7 @@ import {
 import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
+import { PROJECT_ROLES } from '@/utils/roleConfig';
 import { format } from 'date-fns';
 import { AddParticipantDialog } from '@/components/admin/AddParticipantDialog';
 import { EditProjectDialogFull } from '@/components/admin/EditProjectDialogFull';
@@ -146,8 +148,8 @@ export default function ProjectDetail() {
   const [deleteDocumentDialog, setDeleteDocumentDialog] = useState<{ open: boolean; docId: string; docName: string; storagePath: string } | null>(null);
   const [deletingDocument, setDeletingDocument] = useState(false);
 
-  const isAdmin = profile?.role === 'admin';
-  const isPIC = participants.some(p => p.user_id === profile?.id && p.role_in_project === 'pic');
+  const isAdmin = profile?.role === ROLES.ADMIN;
+  const isPIC = participants.some(p => p.user_id === profile?.id && p.role_in_project === PROJECT_ROLES.PIC);
   const canEdit = isAdmin || isPIC;
   const canManageTasks = isPIC; // Only PIC can create/edit tasks
 
@@ -354,13 +356,13 @@ export default function ProjectDetail() {
       // First, remove PIC from all other participants
       await supabase
         .from('project_participants')
-        .update({ role_in_project: 'member' })
+        .update({ role_in_project: PROJECT_ROLES.MEMBER })
         .eq('project_id', id);
 
       // Then set this participant as PIC
       const { error } = await supabase
         .from('project_participants')
-        .update({ role_in_project: 'pic' })
+        .update({ role_in_project: PROJECT_ROLES.PIC })
         .eq('project_id', id)
         .eq('user_id', setPICDialog.userId);
 
@@ -962,7 +964,7 @@ export default function ProjectDetail() {
                         </div>
                         {canEdit && (
                           <div className="flex gap-2">
-                            {!isPIC && participant.user?.role === 'mentor' && (
+                            {!isPIC && participant.user?.role === ROLES.MENTOR && (
                               <Button
                                 size="sm"
                                 variant="outline"
