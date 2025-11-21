@@ -24,7 +24,7 @@ export function DetailModal({ logbook, open, onClose, onDeleted }: DetailModalPr
   const [isDownloading, setIsDownloading] = useState(false);
 
   const totalDuration = calculateTotalDuration(
-    logbook.entries.map((e) => e.duration)
+    logbook.entries.map((e) => String(e.duration))
   );
 
   // Mock user data - in production, get from auth context

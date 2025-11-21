@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { ROLES } from '@/utils/roleConfig';
 import { CreateUserDialog } from '@/components/admin/CreateUserDialog';
 import { EditUserDialogEnhanced } from '@/components/admin/EditUserDialogEnhanced';
 import { DeleteUserDialog } from '@/components/admin/DeleteUserDialog';
@@ -118,7 +119,7 @@ export default function AllUsers() {
 
     // Batch filter
     if (batchFilter !== 'all') {
-      filtered = filtered.filter((user) => user.batch === batchFilter);
+      filtered = filtered.filter(u => String(u.batch) === batchFilter);
     }
 
     setFilteredUsers(filtered);

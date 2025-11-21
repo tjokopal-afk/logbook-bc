@@ -523,7 +523,7 @@ export async function exportWeeklyReportToPDF(report: WeeklyReport): Promise<voi
       jsPDF: { 
         unit: 'mm', 
         format: 'a4', 
-        orientation: 'landscape',
+        orientation: 'landscape' as const,
         compress: true
       },
       pagebreak: { 

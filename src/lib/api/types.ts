@@ -232,6 +232,7 @@ export interface UpdateLogbookEntryDTO {
   entry_date?: string;
   start_time?: string;
   end_time?: string;
+  duration_minutes?: number;
   content?: string;
   project_id?: string;
   task_id?: string;

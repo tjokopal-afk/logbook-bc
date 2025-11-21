@@ -102,7 +102,8 @@ export function ActivityTimeline({ projectId, limit = 20 }: ActivityTimelineProp
       .select('id, full_name, avatar_url')
       .in('id', Array.from(userIds));
 
-    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+    type ProfileData = { id: string; full_name: string; avatar_url: string };
+    const profileMap = new Map<string, ProfileData>(profiles?.map(p => [p.id, p as ProfileData]) || []);
 
     const events: ActivityEvent[] = [];
 
@@ -172,7 +173,8 @@ export function ActivityTimeline({ projectId, limit = 20 }: ActivityTimelineProp
       .select('id, full_name, avatar_url')
       .in('id', uploaderIds);
 
-    const uploaderMap = new Map(uploaders?.map(u => [u.id, u]) || []);
+    type ProfileData = { id: string; full_name: string; avatar_url: string };
+    const uploaderMap = new Map<string, ProfileData>(uploaders?.map(u => [u.id, u as ProfileData]) || []);
 
     return docs.map((doc: { id: string; file_name: string; created_at: string; uploaded_by: string }) => {
       const uploader = uploaderMap.get(doc.uploaded_by);
@@ -210,7 +212,8 @@ export function ActivityTimeline({ projectId, limit = 20 }: ActivityTimelineProp
       .select('id, full_name, avatar_url, role')
       .in('id', userIds);
 
-    const userMap = new Map(users?.map(u => [u.id, u]) || []);
+    type UserProfileData = { id: string; full_name: string; avatar_url: string; role: string };
+    const userMap = new Map<string, UserProfileData>(users?.map(u => [u.id, u as UserProfileData]) || []);
 
     return participants.map((p: { joined_at: string; user_id: string }, index: number) => {
       const user = userMap.get(p.user_id);

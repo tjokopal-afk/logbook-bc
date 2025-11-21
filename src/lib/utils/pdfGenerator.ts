@@ -19,7 +19,7 @@ export function generateTimesheetHTML(logbook: WeeklyLogbook, userData?: {
 }): string {
   // Sort entries by date
   const sortedEntries = [...logbook.entries].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    (a, b) => new Date(a.date || a.entry_date).getTime() - new Date(b.date || b.entry_date).getTime()
   );
 
   // Generate table rows
@@ -34,7 +34,7 @@ export function generateTimesheetHTML(logbook: WeeklyLogbook, userData?: {
       return `
         <tr>
           <td>${index + 1}</td>
-          <td>${formatDate(entry.date)}</td>
+          <td>${formatDate(entry.date || entry.entry_date)}</td>
           <td>${entry.start_time || '-'}</td>
           <td>${entry.end_time || '-'}</td>
           <td>${entry.duration || '-'}</td>
