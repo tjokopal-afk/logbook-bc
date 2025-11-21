@@ -22,7 +22,6 @@ export default function InternDashboard() {
   // Logbook stats (moved here)
   const [logStats, setLogStats] = useState({
     draftCount: 0,
-    compiledWeeks: 0,
     submittedWeeks: 0,
     approvedWeeks: 0,
     rejectedWeeks: 0,
@@ -76,13 +75,8 @@ export default function InternDashboard() {
       if (error) return;
       const entries = (data || []) as Array<{ category?: string; duration_minutes?: number }>;
       const draftCount = entries.filter(e => e.category === 'draft').length;
-      const compiledWeeks = new Set(
-        entries.filter(e => (e.category || '').includes('_log_compile'))
-               .map(e => e.category?.match(/weekly_(\d+)_/)?.[1])
-               .filter(Boolean as unknown as (x: unknown) => x is string)
-      ).size;
       const submittedWeeks = new Set(
-        entries.filter(e => (e.category || '').includes('_log_submitted'))
+        entries.filter(e => (e.category || '').includes('_log_submitted') && !(e.category || '').includes('_log_approved') && !(e.category || '').includes('_log_rejected'))
                .map(e => e.category?.match(/weekly_(\d+)_/)?.[1])
                .filter(Boolean as unknown as (x: unknown) => x is string)
       ).size;
@@ -102,7 +96,7 @@ export default function InternDashboard() {
           entries.reduce((sum, e) => sum + (e.duration_minutes || 0), 0) / 60
         ).toFixed(1)
       );
-      setLogStats({ draftCount, compiledWeeks, submittedWeeks, approvedWeeks, rejectedWeeks, totalHoursSubmitted });
+      setLogStats({ draftCount, submittedWeeks, approvedWeeks, rejectedWeeks, totalHoursSubmitted });
     };
     loadLogStats();
   }, [profile?.id]);
@@ -183,21 +177,16 @@ export default function InternDashboard() {
           <CardDescription>Statistik dari logbook mingguan. Klik untuk membuka detail.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div onClick={() => navigate('/intern/laporan')} className="bg-white rounded-lg p-4 border hover:shadow cursor-pointer text-center">
               <FileText className="h-6 w-6 text-gray-600 mb-2 mx-auto" />
               <p className="text-2xl font-bold">{logStats.draftCount}</p>
               <p className="text-xs text-muted-foreground mt-1">Draft</p>
             </div>
-            <div onClick={() => navigate('/intern/laporan')} className="bg-white rounded-lg p-4 border hover:shadow cursor-pointer text-center">
-              <Calendar className="h-6 w-6 text-blue-600 mb-2 mx-auto" />
-              <p className="text-2xl font-bold text-blue-600">{logStats.compiledWeeks}</p>
-              <p className="text-xs text-muted-foreground mt-1">Compiled</p>
-            </div>
             <div onClick={() => navigate('/intern/status-dan-review')} className="bg-white rounded-lg p-4 border hover:shadow cursor-pointer text-center">
               <Send className="h-6 w-6 text-yellow-600 mb-2 mx-auto" />
               <p className="text-2xl font-bold text-yellow-600">{logStats.submittedWeeks}</p>
-              <p className="text-xs text-muted-foreground mt-1">Submitted</p>
+              <p className="text-xs text-muted-foreground mt-1">Under Review</p>
             </div>
             <div onClick={() => navigate('/intern/status-dan-review')} className="bg-white rounded-lg p-4 border hover:shadow cursor-pointer text-center">
               <CheckCircle2 className="h-6 w-6 text-green-600 mb-2 mx-auto" />
