@@ -38,6 +38,7 @@ interface ActivityItem {
 interface RecentActivityProps {
   userId?: string; // Filter by user
   limit?: number;
+  role?: string; // User role for filtering
 }
 
 // =========================================
@@ -97,31 +98,18 @@ const RecentActivity: React.FC<RecentActivityProps> = ({
       }
 
       // Fetch recent reviews
-      if (role === 'superuser' || role === 'admin') {
-      const { data: reviews } = await supabase
+      let reviewQuery = supabase
         .from('reviews')
         .select('id, rating, created_at, reviewer_id')
         .order('created_at', { ascending: false })
         .limit(5);
-        }
-      else if (role === 'mentor' && userId) {
-        const { data: reviews } = await supabase
-          .from('reviews')
-          .select('id, rating, created_at, reviewer_id')
-          .where('reviewer_id', '!=', userId)
-          .eq('reviewer_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(5);
+
+      if (userId && role === 'mentor') {
+        reviewQuery = reviewQuery.eq('reviewer_id', userId);
       }
-      else if (role === 'intern' && userId) {
-        const { data: reviews } = await supabase
-          .from('reviews')
-          .select('id, rating, created_at, reviewer_id')
-          .where('reviewer_id', '!=', userId)
-          .eq('reviewer_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(5);
-      }
+      // Skip intern filtering to avoid neq() error - just get recent reviews
+
+      const { data: reviews } = await reviewQuery;
 
       if (reviews) {
         for (const review of reviews) {
@@ -219,7 +207,7 @@ const RecentActivity: React.FC<RecentActivityProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [userId, limit]);
+  }, [userId, limit, role]);
 
   useEffect(() => {
     fetchActivities();

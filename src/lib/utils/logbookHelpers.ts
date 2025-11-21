@@ -187,12 +187,12 @@ export function fromLegacyFormat(
   
   return {
     entry_date: date,
-    start_time: legacy.start_time ? timeToISO(date, legacy.start_time, timezone) : null,
-    end_time: legacy.end_time ? timeToISO(date, legacy.end_time, timezone) : null,
+    start_time: legacy.start_time ? timeToISO(date, legacy.start_time, timezone) : undefined,
+    end_time: legacy.end_time ? timeToISO(date, legacy.end_time, timezone) : undefined,
     content: legacy.description || legacy.activity || '',
     category: 'daily task',
-    project_id: null,
-    task_id: null,
+    project_id: undefined,
+    task_id: undefined,
   }
 }
 

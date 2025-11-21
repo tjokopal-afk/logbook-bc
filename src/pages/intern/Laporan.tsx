@@ -184,6 +184,7 @@ export default function MyLogbook() {
                 totalDuration={logbook.totalDuration}
                 startDate={logbook.startDate}
                 endDate={logbook.endDate}
+                entries={logbook.entries}
                 onViewDetail={() => setSelectedLogbook(logbook)}
               />
             ))}

@@ -241,27 +241,8 @@ export function LogbookDaily({ userId, projectId, taskId, startDate }: LogbookDa
       setSelectedTaskId(taskId); // Reset to default prop value
       setEditingEntry(null);
 
-      if (editingEntry) {
-        // Reload entries for same day when updating
-        loadDailyEntries();
-      } else {
-        // Auto-advance date by +1 day for next draft (still editable). Do not go beyond today.
-        try {
-          const d = new Date(selectedDate);
-          d.setDate(d.getDate() + 1);
-          const nextDate = format(d, 'yyyy-MM-dd');
-          const todayStr = format(new Date(), 'yyyy-MM-dd');
-          if (nextDate <= todayStr) {
-            setSelectedDate(nextDate);
-          } else {
-            // Keep current date if next day is in the future
-            loadDailyEntries();
-          }
-        } catch {
-          // Fallback: ignore if date parsing fails
-          loadDailyEntries();
-        }
-      }
+      // Always reload entries for current day to show the new entry
+      loadDailyEntries();
     } catch (error) {
       console.error('Save entry error:', error);
       alert('Failed to save entry. Please try again.');

@@ -23,8 +23,6 @@ import { PROJECT_ROLES } from '@/utils/roleConfig';
 
 interface LogbookStats {
   draftCount: number;
-  compiledWeeks: number;
-  submittedWeeks: number;
   approvedWeeks: number;
   rejectedWeeks: number;
   totalHours: number;
@@ -34,8 +32,6 @@ export default function InternLogbookDashboard() {
   const { user, profile } = useAuth();
   const [stats, setStats] = useState<LogbookStats>({
     draftCount: 0,
-    compiledWeeks: 0,
-    submittedWeeks: 0,
     approvedWeeks: 0,
     rejectedWeeks: 0,
     totalHours: 0
@@ -95,23 +91,10 @@ export default function InternLogbookDashboard() {
 
       const entries = data || [];
 
-      // Count by category
+      // Count by category - only count truly pending drafts
       const draftCount = entries.filter(e => e.category === 'draft').length;
       
-      // Extract week numbers for compiled, submitted, approved, rejected
-      const compiledWeeks = new Set(
-        entries
-          .filter(e => e.category?.includes('_log_compile'))
-          .map(e => e.category?.match(/weekly_(\d+)_/)?.[1])
-          .filter(Boolean)
-      ).size;
-
-      const submittedWeeks = new Set(
-        entries
-          .filter(e => e.category?.includes('_log_submitted'))
-          .map(e => e.category?.match(/weekly_(\d+)_/)?.[1])
-          .filter(Boolean)
-      ).size;
+      // Extract week numbers from approved and rejected entries
 
       const approvedWeeks = new Set(
         entries
@@ -133,8 +116,6 @@ export default function InternLogbookDashboard() {
 
       setStats({
         draftCount,
-        compiledWeeks,
-        submittedWeeks,
         approvedWeeks,
         rejectedWeeks,
         totalHours
@@ -148,7 +129,7 @@ export default function InternLogbookDashboard() {
     if (user) {
       loadStats();
     }
-  }, [user, loadStats]);
+  }, [user, loadStats, activeTab]);
 
   if (!user || !profile) {
     return <div>Loading...</div>;
@@ -165,7 +146,7 @@ export default function InternLogbookDashboard() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" key={`stats-${stats.draftCount}`}>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -173,30 +154,6 @@ export default function InternLogbookDashboard() {
               <div>
                 <p className="text-2xl font-bold">{stats.draftCount}</p>
                 <p className="text-xs text-gray-600">Draft Entries</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Calendar className="h-8 w-8 text-blue-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.compiledWeeks}</p>
-                <p className="text-xs text-gray-600">Compiled</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Send className="h-8 w-8 text-yellow-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.submittedWeeks}</p>
-                <p className="text-xs text-gray-600">Submitted</p>
               </div>
             </div>
           </CardContent>

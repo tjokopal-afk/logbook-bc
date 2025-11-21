@@ -509,7 +509,7 @@ export async function exportWeeklyReportToPDF(report: WeeklyReport): Promise<voi
       margin: 0,
       filename: `Timesheet_Week${report.weekNumber}_${new Date().toISOString().split('T')[0]}.pdf`,
       image: { 
-        type: 'jpeg', 
+        type: 'jpeg' as const, 
         quality: 0.98 
       },
       html2canvas: { 
@@ -532,7 +532,7 @@ export async function exportWeeklyReportToPDF(report: WeeklyReport): Promise<voi
     };
 
     // Generate PDF
-    await html2pdf().set(opt).from(element).save();
+    await html2pdf().set(opt).from(element as HTMLElement).save();
 
     // Cleanup
     document.body.removeChild(tempContainer);

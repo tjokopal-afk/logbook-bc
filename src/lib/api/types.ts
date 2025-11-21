@@ -18,6 +18,8 @@ export interface Profile {
   phone?: string;
   company?: string;
   division?: string;
+  // Added for backward compatibility with existing components
+  affiliation?: string; // Optional organization / university affiliation
   project_charter_url?: string;
   start_date?: string; // Internship start date
   end_date?: string; // Internship end date
@@ -129,6 +131,21 @@ export interface LogbookEntry {
   
   created_at: string;
   updated_at: string;
+
+  // ----------------------------------------
+  // Backward compatibility alias fields
+  // Several legacy components still access these names.
+  // They are optional and mapped from canonical fields:
+  // date -> entry_date
+  // activity -> content
+  // description -> content (extended description)
+  // duration -> duration_minutes
+  // weekly_logbook_name -> derived from category (e.g. Week N)
+  date?: string;
+  activity?: string;
+  description?: string;
+  duration?: number;
+  weekly_logbook_name?: string;
 }
 
 export interface Attachment {
@@ -220,6 +237,11 @@ export interface UpdateLogbookEntryDTO {
   task_id?: string;
   category?: string;
   attachments?: Attachment[];
+  // Backward compatibility optional fields
+  date?: string;
+  activity?: string;
+  description?: string;
+  duration?: number;
 }
 
 export interface TaskReviewDTO {
@@ -275,3 +297,16 @@ export type ProjectStatus = 'active' | 'completed' | 'upcoming';
 export type SessionStatus = 'online' | 'offline' | 'idle';
 export type UserRole = 'intern' | 'mentor' | 'admin' | 'superuser';
 export type ProjectRole = 'pic' | 'member';
+
+// ========================================
+// AUDIT LOG TYPE (added to fix missing export)
+// ========================================
+export interface AuditLog {
+  id: string;
+  user_id?: string;
+  action: string; // e.g. 'create_logbook', 'approve_weekly_log'
+  entity_type?: string; // 'logbook' | 'task' | 'project' | etc
+  entity_id?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}

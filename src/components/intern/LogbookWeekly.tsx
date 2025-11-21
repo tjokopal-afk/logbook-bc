@@ -112,26 +112,45 @@ export function LogbookWeekly({
         let filteredEntries: LogbookEntry[] = [];
         
         if (mode === 'draft') {
-          // Draft mode: show draft and compiled entries
+          // Draft mode: show draft, compiled, and rejected entries (can be edited)
           filteredEntries = allEntries.filter(e => {
             const cat = e.category || '';
-            return cat === 'draft' || cat.includes(`weekly_${weekNumber}_log_compile`);
+            return cat === 'draft' || 
+                   cat.includes(`weekly_${weekNumber}_log_compile`) ||
+                   cat.includes(`weekly_${weekNumber}_log_rejected_`);
           });
           
-          // Determine status
+          // Determine status - check rejected first, then compiled, then draft
+          const hasRejected = filteredEntries.some(e => e.category?.includes('rejected_'));
           const hasCompiled = filteredEntries.some(e => e.category?.includes('compile'));
-          setWeekStatus(hasCompiled ? 'compiled' : 'draft');
+          
+          if (hasRejected) {
+            setWeekStatus('rejected');
+          } else if (hasCompiled) {
+            setWeekStatus('compiled');
+          } else {
+            setWeekStatus('draft');
+          }
         } else {
-          // Submitted mode: show submitted and approved entries
+          // Submitted mode: show submitted, approved, and rejected entries
           filteredEntries = allEntries.filter(e => {
             const cat = e.category || '';
             return cat.includes(`weekly_${weekNumber}_log_submitted`) || 
-                   cat.includes(`weekly_${weekNumber}_log_approved`);
+                   cat.includes(`weekly_${weekNumber}_log_approved`) ||
+                   cat.includes(`weekly_${weekNumber}_log_rejected_`);
           });
           
-          // Determine status
+          // Determine status - check approved first, then rejected, then submitted
           const hasApproved = filteredEntries.some(e => e.category?.includes('approved'));
-          setWeekStatus(hasApproved ? 'approved' : 'submitted');
+          const hasRejected = filteredEntries.some(e => e.category?.includes('rejected_'));
+          
+          if (hasApproved) {
+            setWeekStatus('approved');
+          } else if (hasRejected) {
+            setWeekStatus('rejected');
+          } else {
+            setWeekStatus('submitted');
+          }
         }
 
         // Step 4: Group by date
@@ -179,6 +198,15 @@ export function LogbookWeekly({
       isMounted = false;
     };
   }, [userId, projectId, weekNumber, mode, weekStart, weekEnd]);
+
+  // Force reload when coming back to this tab
+  useEffect(() => {
+    // Trigger reload when component mounts or weekStatus changes
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [weekStatus]);
 
   // Reload data after actions
   // Calculate total hours for the week
@@ -308,28 +336,52 @@ export function LogbookWeekly({
                 <p className="text-sm text-red-600">
                   Your submission was rejected. Make corrections in the "Add Draft" tab, then resubmit.
                 </p>
-                <Button onClick={handleResubmit} disabled={processing} className="bg-orange-600 hover:bg-orange-700">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Resubmit After Corrections
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={handleResubmit} disabled={processing} className="bg-orange-600 hover:bg-orange-700">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Resubmit After Corrections
+                  </Button>
+                  <Button variant="outline" onClick={() => window.location.href = '/intern/status'} className="border-blue-600 text-blue-600 hover:bg-blue-50">
+                    <FileText className="h-4 w-4 mr-2" />
+                    View Details
+                  </Button>
+                </div>
               </div>
             )}
             {mode === 'submitted' && weekStatus === 'submitted' && (
-              <div className="text-sm text-gray-600 flex items-center gap-2">
-                <Clock className="h-4 w-4 animate-pulse" />
-                Waiting for mentor review...
+              <div className="space-y-2">
+                <div className="text-sm text-gray-600 flex items-center gap-2">
+                  <Clock className="h-4 w-4 animate-pulse" />
+                  Waiting for mentor review...
+                </div>
+                <Button variant="outline" onClick={() => window.location.href = '/intern/status'} size="sm" className="border-blue-600 text-blue-600 hover:bg-blue-50">
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Status Details
+                </Button>
               </div>
             )}
             {mode === 'submitted' && weekStatus === 'approved' && (
-              <div className="text-sm text-green-600 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                This week has been approved and locked
+              <div className="space-y-2">
+                <div className="text-sm text-green-600 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  This week has been approved and locked
+                </div>
+                <Button variant="outline" onClick={() => window.location.href = '/intern/status'} size="sm" className="border-green-600 text-green-600 hover:bg-green-50">
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Review Details
+                </Button>
               </div>
             )}
             {mode === 'submitted' && weekStatus === 'rejected' && (
-              <div className="text-sm text-red-600 flex items-center gap-2">
-                <XCircle className="h-4 w-4" />
-                This week was rejected - go to Weekly Draft tab to make corrections
+              <div className="space-y-2">
+                <div className="text-sm text-red-600 flex items-center gap-2">
+                  <XCircle className="h-4 w-4" />
+                  This week was rejected - go to Weekly Draft tab to make corrections
+                </div>
+                <Button variant="outline" onClick={() => window.location.href = '/intern/status'} size="sm" className="border-red-600 text-red-600 hover:bg-red-50">
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Rejection Details
+                </Button>
               </div>
             )}
           </div>

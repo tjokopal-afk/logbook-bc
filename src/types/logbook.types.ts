@@ -47,6 +47,20 @@ export interface LogbookEntry {
   
   created_at?: string;
   updated_at?: string;
+
+  // ----------------------------------------
+  // Backward compatibility alias fields (legacy components still reference these names)
+  // They map to canonical fields as follows:
+  // date -> entry_date
+  // activity -> content
+  // description -> content (full text)
+  // duration -> duration_minutes
+  // weekly_logbook_name -> derived from category pattern
+  date?: string;
+  activity?: string;
+  description?: string;
+  duration?: number | null;
+  weekly_logbook_name?: string;
 }
 
 export interface Review {
@@ -91,6 +105,12 @@ export interface UpdateLogbookEntryDTO {
   project_id?: string;
   task_id?: string;
   category?: string;
+
+  // Backward compatibility optional fields (not persisted as separate columns)
+  date?: string;
+  activity?: string;
+  description?: string;
+  duration?: number;
 }
 
 export interface WeeklyLogbook {

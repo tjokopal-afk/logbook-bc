@@ -149,9 +149,9 @@ export default function MyProjects() {
             document_count: documentCount || 0,
             progress: progress,
             task_stats: {
-              total: progressDetails.total,
-              completed: progressDetails.completed,
-              pending: progressDetails.pending,
+              total: progressDetails.totalTasks,
+              completed: progressDetails.completedTasks,
+              pending: progressDetails.pendingTasks,
             },
             completion_rate: progress,
             role_in_project: roleMap.get(project.id) || PROJECT_ROLES.MEMBER,

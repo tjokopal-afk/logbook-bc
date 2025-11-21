@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/supabase';
 import type { Profile } from '@/lib/api/types';
-import { ROLES } from '@/utils/roleConfig';
+import { ROLES, PROJECT_ROLES } from '@/utils/roleConfig';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Users,
@@ -48,6 +48,7 @@ interface DashboardStats {
   activeUsers?: number;
   totalLogbookEntries?: number;
   pendingReviews?: number;
+  approvedLogbooks?: number;
 }
 
 interface StatCardProps {
@@ -172,6 +173,10 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
       const effectiveUserId = userId || currentUser?.id;
       const effectiveRole = role || currentUser?.role;
 
+      // Force fresh data - no cache
+      const timestamp = Date.now();
+      console.log(`[DashboardStats] Fetching fresh stats at ${timestamp} for role: ${effectiveRole}`);
+
       const newStats: DashboardStats = {
         totalProjects: 0,
         activeProjects: 0,
@@ -246,16 +251,27 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
           .from('logbook_entries')
           .select('*', { count: 'exact', head: true });
 
-        // Count pending weekly submissions (category contains '_log_submitted')
-        const { count: pendingReviews } = await supabase
+        // Count pending weekly submissions (category contains '_log_submitted' but not approved/rejected)
+        const { data: allSubmitted } = await supabase
           .from('logbook_entries')
-          .select('*', { count: 'exact', head: true })
+          .select('category')
           .like('category', '%_log_submitted');
+        
+        const pendingReviews = (allSubmitted || []).filter(e => 
+          !e.category.includes('approved') && !e.category.includes('rejected')
+        ).length;
+
+        // Count approved logbooks for admin
+        const { data: approvedEntries } = await supabase
+          .from('logbook_entries')
+          .select('id')
+          .like('category', '%_log_approved');
 
         newStats.totalUsers = totalUsers || 0;
         newStats.totalLogbookEntries = totalLogbookEntries || 0;
         newStats.pendingReviews = pendingReviews || 0;
-      } else if (effectiveRole === ROLES.MENTOR) {
+        newStats.approvedLogbooks = (approvedEntries || []).length;
+      } else if (effectiveRole === ROLES.MENTOR && effectiveUserId) {
         // Mentor stats - tasks to review
         const { count: tasksToReview } = await supabase
           .from('tasks')
@@ -265,13 +281,41 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
 
         newStats.tasksToReview = tasksToReview || 0;
 
-        // Logbook weekly submissions pending review (category contains '_log_submitted')
-        const { count: pendingReviews } = await supabase
-          .from('logbook_entries')
-          .select('*', { count: 'exact', head: true })
-          .like('category', '%_log_submitted');
+        // Get mentor's projects (where mentor is PIC)
+        const { data: mentorProjects } = await supabase
+          .from('project_participants')
+          .select('project_id')
+          .eq('user_id', effectiveUserId)
+          .eq('role_in_project', PROJECT_ROLES.PIC);
 
-        newStats.pendingReviews = pendingReviews || 0;
+        const mentorProjectIds = (mentorProjects || []).map(p => p.project_id);
+
+        if (mentorProjectIds.length > 0) {
+          // Logbook weekly submissions pending review from mentor's projects only
+          const { data: allSubmitted } = await supabase
+            .from('logbook_entries')
+            .select('category, project_id')
+            .in('project_id', mentorProjectIds)
+            .like('category', '%_log_submitted');
+          
+          const pendingReviews = (allSubmitted || []).filter(e => 
+            !e.category.includes('approved') && !e.category.includes('rejected')
+          ).length;
+
+          newStats.pendingReviews = pendingReviews;
+          
+          // Count approved logbooks from mentor's projects only
+          const { data: approvedEntries } = await supabase
+            .from('logbook_entries')
+            .select('id')
+            .in('project_id', mentorProjectIds)
+            .like('category', '%_log_approved');
+          
+          newStats.approvedLogbooks = (approvedEntries || []).length;
+        } else {
+          newStats.pendingReviews = 0;
+          newStats.approvedLogbooks = 0;
+        }
       } else if (effectiveRole === ROLES.INTERN && effectiveUserId) {
         // Intern stats - my tasks
         const { count: myTasks } = await supabase
@@ -404,7 +448,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
       {effectiveRole === ROLES.ADMIN || effectiveRole === ROLES.SUPERUSER ? (
         <div>
           <h3 className="text-lg font-semibold mb-4">Statistik Admin</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard
               title="Total Pengguna"
               value={stats.totalUsers || 0}
@@ -424,14 +468,21 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
               value={stats.pendingReviews || 0}
               icon={<AlertTriangle className="w-4 h-4" />}
               description="Logbook mingguan perlu review"
-              colorClass="bg-orange-500"
+              colorClass="bg-yellow-500"
+            />
+            <StatCard
+              title="Approved"
+              value={stats.approvedLogbooks || 0}
+              icon={<CheckCircle2 className="w-4 h-4" />}
+              description="Logbook yang disetujui"
+              colorClass="bg-green-500"
             />
           </div>
         </div>
       ) : effectiveRole === ROLES.MENTOR ? (
         <div>
           <h3 className="text-lg font-semibold mb-4">Tugas Mentor</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <StatCard
               title="Tugas Perlu Review"
               value={stats.tasksToReview || 0}
@@ -440,11 +491,18 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId, role, mode = 'd
               colorClass="bg-orange-500"
             />
             <StatCard
-              title="Logbook Pending"
+              title="Pending Review"
               value={stats.pendingReviews || 0}
-              icon={<FileText className="w-4 h-4" />}
+              icon={<Clock className="w-4 h-4" />}
               description="Logbook perlu review"
-              colorClass="bg-red-500"
+              colorClass="bg-yellow-500"
+            />
+            <StatCard
+              title="Approved"
+              value={stats.approvedLogbooks || 0}
+              icon={<CheckCircle2 className="w-4 h-4" />}
+              description="Logbook yang disetujui"
+              colorClass="bg-green-500"
             />
           </div>
         </div>

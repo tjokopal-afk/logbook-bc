@@ -11,4 +11,19 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  server: {
+    // Force fresh reload on file changes
+    hmr: {
+      overlay: true
+    },
+    watch: {
+      usePolling: true
+    }
+  },
+  build: {
+    // Disable minification for debugging
+    minify: false,
+    // Generate source maps
+    sourcemap: true
+  }
 })

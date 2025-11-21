@@ -215,13 +215,17 @@ export default function ReviewLogbook() {
       return <Badge className="bg-green-600"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
     } else if (category.includes('rejected')) {
       return <Badge className="bg-red-600"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
-    } else if (category.includes('submitted')) {
+    } else if (category.includes('submitted') && !category.includes('approved') && !category.includes('rejected')) {
       return <Badge className="bg-blue-600"><Clock className="w-3 h-3 mr-1" />Pending Review</Badge>;
     }
     return <Badge variant="outline">Draft</Badge>;
   };
 
-  const submittedCount = reports.filter(r => r.category.includes('submitted') && !r.category.includes('approved') && !r.category.includes('rejected')).length;
+  const submittedCount = reports.filter(r => 
+    r.category.includes('submitted') && 
+    !r.category.includes('approved') && 
+    !r.category.includes('rejected')
+  ).length;
   const approvedCount = reports.filter(r => r.category.includes('approved')).length;
   const rejectedCount = reports.filter(r => r.category.includes('rejected')).length;
 

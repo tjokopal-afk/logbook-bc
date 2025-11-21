@@ -20,8 +20,8 @@ const globalAny = globalThis as unknown as { __supabase?: any; __supabaseAdmin?:
 function createRegularClient() {
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      storage: sessionStorage,
-      storageKey: 'logbook-auth',
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      storageKey: 'logbook-auth-token',
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,

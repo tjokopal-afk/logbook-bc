@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cache Clearer - Logbook App</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            margin: 10px 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn.success {
+            background: #48bb78;
+        }
+        .btn.success:hover {
+            background: #38a169;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        .status.show {
+            display: block;
+        }
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 2px solid #48bb78;
+        }
+        .status.info {
+            background: #bee3f8;
+            color: #2c5282;
+            border: 2px solid #4299e1;
+        }
+        ul {
+            text-align: left;
+            margin: 20px 0;
+        }
+        li {
+            margin: 10px 0;
+            color: #4a5568;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+        .section h2 {
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+        code {
+            background: #edf2f7;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #e53e3e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Cache Clearer</h1>
+        <p class="subtitle">Pastikan perubahan dashboard terlihat dengan clear cache</p>
+
+        <div class="section">
+            <h2>✨ Perubahan yang Diimplementasi:</h2>
+            <ul>
+                <li><strong>Intern Dashboard:</strong> 5 cards (removed "Compiled")</li>
+                <li><strong>Mentor Dashboard:</strong> 3 cards (added "Approved")</li>
+                <li><strong>Status Badge:</strong> Akurat menampilkan approved/rejected</li>
+                <li><strong>Under Review Count:</strong> Tidak include approved/rejected</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <button class="btn" onclick="clearAll()">
+                🧹 Clear All Cache
+            </button>
+            <button class="btn" onclick="clearStorage()">
+                💾 Clear Storage
+            </button>
+            <button class="btn success" onclick="hardReload()">
+                🔄 Hard Reload
+            </button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div class="section">
+            <h2>📝 Manual Steps (jika diperlukan):</h2>
+            <ol>
+                <li>Tekan <code>Ctrl + Shift + Delete</code> untuk buka Clear Browsing Data</li>
+                <li>Pilih "Cached images and files"</li>
+                <li>Klik "Clear data"</li>
+                <li>Refresh halaman dengan <code>Ctrl + F5</code></li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>🔗 Server Info:</h2>
+            <p>Dev server running at: <code>http://localhost:5175/</code></p>
+            <p>Vite cache: <strong>✅ Cleared</strong></p>
+        </div>
+    </div>
+
+    <script>
+        function showStatus(message, type = 'success') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status show ${type}`;
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 5000);
+        }
+
+        async function clearAll() {
+            try {
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear cookies
+                document.cookie.split(";").forEach(c => {
+                    document.cookie = c.replace(/^ +/, "")
+                        .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
+                });
+                
+                // Unregister service workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (const registration of registrations) {
+                        await registration.unregister();
+                    }
+                }
+                
+                // Clear cache storage
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(
+                        cacheNames.map(cacheName => caches.delete(cacheName))
+                    );
+                }
+                
+                showStatus('✅ All cache cleared! Reloading in 2 seconds...', 'success');
+                
+                setTimeout(() => {
+                    window.location.reload(true);
+                }, 2000);
+            } catch (error) {
+                showStatus('⚠️ Error clearing cache: ' + error.message, 'info');
+            }
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            showStatus('✅ Storage cleared!', 'success');
+        }
+
+        function hardReload() {
+            showStatus('🔄 Performing hard reload...', 'info');
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 500);
+        }
+
+        // Auto-clear on page load if query param present
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auto') === 'true') {
+            clearAll();
+        }
+    </script>
+</body>
+</html>

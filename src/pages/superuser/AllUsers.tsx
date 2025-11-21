@@ -41,7 +41,7 @@ interface User {
   phone?: string;
   nim?: string;
   avatar_url?: string;
-  batch?: string;
+  batch?: number;
 }
 
 export default function AllUsers() {
