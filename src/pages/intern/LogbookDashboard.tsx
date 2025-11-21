@@ -38,6 +38,7 @@ export default function InternLogbookDashboard() {
   });
   const [activeTab, setActiveTab] = useState('daily');
   const [selectedWeek, setSelectedWeek] = useState(1);
+  const [availableWeeks, setAvailableWeeks] = useState<number[]>([1]);
 
   // Get user's project and mentor info
   const [projectId, setProjectId] = useState<string>('');
@@ -95,7 +96,6 @@ export default function InternLogbookDashboard() {
       const draftCount = entries.filter(e => e.category === 'draft').length;
       
       // Extract week numbers from approved and rejected entries
-
       const approvedWeeks = new Set(
         entries
           .filter(e => e.category?.includes('_log_approved'))
@@ -120,10 +120,43 @@ export default function InternLogbookDashboard() {
         rejectedWeeks,
         totalHours
       });
+
+      // Calculate available weeks dynamically
+      const weeksWithData = new Set<number>();
+      entries.forEach(e => {
+        const match = e.category?.match(/weekly_(\d+)_/);
+        if (match) {
+          weeksWithData.add(parseInt(match[1]));
+        }
+      });
+
+      // Calculate current week based on start_date
+      if (profile?.start_date) {
+        const start = new Date(profile.start_date);
+        const today = new Date();
+        const startDayOfWeek = start.getDay();
+        const daysUntilSunday = (7 - startDayOfWeek) % 7;
+        const firstSunday = new Date(start);
+        firstSunday.setDate(start.getDate() + daysUntilSunday);
+
+        let currentWeek = 1;
+        if (today >= firstSunday) {
+          const diffTime = today.getTime() - firstSunday.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          currentWeek = Math.floor(diffDays / 7) + 2;
+        }
+
+        // Include current week even if no data yet
+        weeksWithData.add(currentWeek);
+      }
+
+      // Convert to sorted array
+      const weeks = Array.from(weeksWithData).sort((a, b) => a - b);
+      setAvailableWeeks(weeks.length > 0 ? weeks : [1]);
     } catch (error) {
       console.error('Error loading stats:', error);
     }
-  }, [user]);
+  }, [user, profile]);
 
   useEffect(() => {
     if (user) {
@@ -226,7 +259,7 @@ export default function InternLogbookDashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex gap-2 flex-wrap">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((week) => (
+                {availableWeeks.map((week) => (
                   <Button
                     key={week}
                     variant={selectedWeek === week ? 'default' : 'outline'}
@@ -245,6 +278,7 @@ export default function InternLogbookDashboard() {
             weekNumber={selectedWeek}
             mentorId={mentorId}
             internName={profile.full_name || user.email || 'Intern'}
+            startDate={profile.start_date || undefined}
           />
         </TabsContent>
       </Tabs>

@@ -50,6 +50,7 @@ interface LogbookDailyProps {
 }
 
 // Calculate which week number a date falls into based on start_date
+// Week ends on Sunday (0=Sunday, 6=Saturday)
 const calculateWeekNumber = (entryDate: string | undefined | null, startDate?: string): number => {
   if (!startDate || !entryDate) return 1;
   
@@ -62,12 +63,22 @@ const calculateWeekNumber = (entryDate: string | undefined | null, startDate?: s
       return 1;
     }
     
-    // Calculate difference in days
-    const diffTime = entry.getTime() - start.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    // Find the Sunday of the week that contains start date
+    const startDayOfWeek = start.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+    const daysUntilSunday = (7 - startDayOfWeek) % 7; // Days until next Sunday (0 if already Sunday)
+    const firstSunday = new Date(start);
+    firstSunday.setDate(start.getDate() + daysUntilSunday);
     
-    // Calculate week number (1-indexed)
-    const weekNumber = Math.floor(diffDays / 7) + 1;
+    // Calculate which week the entry date falls into
+    // Week 1 = start_date to first Sunday
+    // Week 2 = Monday after first Sunday to next Sunday, etc.
+    if (entry < firstSunday) {
+      return 1; // Before first Sunday = Week 1
+    }
+    
+    const diffTime = entry.getTime() - firstSunday.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const weekNumber = Math.floor(diffDays / 7) + 2; // +2 because week 1 is before first Sunday
     
     return Math.max(1, weekNumber);
   } catch (error) {

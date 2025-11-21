@@ -63,21 +63,28 @@ export function LogbookWeekly({
   const [dailyGroups, setDailyGroups] = useState<DailyGroup[]>([]);
   const [weekStatus, setWeekStatus] = useState<'draft' | 'compiled' | 'submitted' | 'approved' | 'rejected'>('draft');
 
-  // Calculate week date range based on internship start date (memoized to prevent infinite loops)
+  // Calculate week date range based on internship start date (Sunday-based weeks)
   const { weekStart, weekEnd } = useMemo(() => {
     // Use actual internship start date from profile or fallback to today
     const internshipStart = startDate ? new Date(startDate) : new Date();
     
-    // Calculate week range: Week 1 = day 0-6, Week 2 = day 7-13, etc.
-    // This matches the calculateWeekNumber logic in LogbookDaily
-    const startDay = (weekNumber - 1) * 7;
-    const endDay = startDay + 6;
+    // Find the Sunday of the week containing start_date
+    const startDayOfWeek = internshipStart.getDay(); // 0=Sunday, 6=Saturday
+    const daysUntilSunday = (7 - startDayOfWeek) % 7;
+    const firstSunday = new Date(internshipStart);
+    firstSunday.setDate(internshipStart.getDate() + daysUntilSunday);
     
-    const start = new Date(internshipStart);
-    start.setDate(start.getDate() + startDay);
+    if (weekNumber === 1) {
+      // Week 1: start_date to first Sunday
+      return { weekStart: internshipStart, weekEnd: firstSunday };
+    }
     
-    const end = new Date(internshipStart);
-    end.setDate(end.getDate() + endDay);
+    // Week N (N>1): Monday after previous Sunday to next Sunday
+    const start = new Date(firstSunday);
+    start.setDate(firstSunday.getDate() + (weekNumber - 2) * 7 + 1); // +1 for Monday
+    
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6); // +6 days = Sunday
     
     return { weekStart: start, weekEnd: end };
   }, [startDate, weekNumber]);
