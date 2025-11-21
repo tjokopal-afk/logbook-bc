@@ -92,7 +92,19 @@ export async function getEntriesByDate(
     const { data, error } = await query.order('start_time', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    
+    // Defensive: Normalize timestamp anomalies from SQL injection
+    // Fix entries where updated_at < created_at
+    const normalized = (data || []).map(entry => {
+      if (entry.updated_at && entry.created_at && 
+          new Date(entry.updated_at) < new Date(entry.created_at)) {
+        console.warn(`Timestamp anomaly detected for entry ${entry.id}, normalizing...`);
+        return { ...entry, updated_at: entry.created_at };
+      }
+      return entry;
+    });
+    
+    return normalized;
   } catch (error) {
     return handleServiceError(error, 'Get entries by date');
   }

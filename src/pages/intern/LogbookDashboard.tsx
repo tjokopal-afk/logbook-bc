@@ -255,20 +255,55 @@ export default function InternLogbookDashboard() {
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Select Week</CardTitle>
-              <CardDescription>Choose which week to compile/view</CardDescription>
+              <CardDescription>
+                {availableWeeks.length > 0 
+                  ? `Choose which week to compile/view (${availableWeeks.length} weeks available)`
+                  : 'No weeks with entries yet. Start by adding daily logs.'}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-2 flex-wrap">
-                {availableWeeks.map((week) => (
-                  <Button
-                    key={week}
-                    variant={selectedWeek === week ? 'default' : 'outline'}
-                    onClick={() => setSelectedWeek(week)}
-                  >
-                    Week {week}
-                  </Button>
-                ))}
-              </div>
+              {availableWeeks.length > 0 ? (
+                <div className="flex gap-2 flex-wrap">
+                  {availableWeeks.map((week) => {
+                    // Calculate date range for display
+                    const start = profile.start_date ? new Date(profile.start_date) : new Date();
+                    const startDayOfWeek = start.getDay();
+                    const daysUntilSunday = (7 - startDayOfWeek) % 7;
+                    const firstSunday = new Date(start);
+                    firstSunday.setDate(start.getDate() + daysUntilSunday);
+                    
+                    let weekStart, weekEnd;
+                    if (week === 1) {
+                      weekStart = start;
+                      weekEnd = firstSunday;
+                    } else {
+                      weekStart = new Date(firstSunday);
+                      weekStart.setDate(firstSunday.getDate() + (week - 2) * 7 + 1);
+                      weekEnd = new Date(weekStart);
+                      weekEnd.setDate(weekStart.getDate() + 6);
+                    }
+                    
+                    const dateLabel = `${weekStart.getDate()} ${weekStart.toLocaleDateString('en-US', { month: 'short' })} - ${weekEnd.getDate()} ${weekEnd.toLocaleDateString('en-US', { month: 'short' })}`;
+                    
+                    return (
+                      <Button
+                        key={week}
+                        variant={selectedWeek === week ? 'default' : 'outline'}
+                        onClick={() => setSelectedWeek(week)}
+                        className="flex flex-col h-auto py-2"
+                      >
+                        <span className="font-bold">Week {week}</span>
+                        <span className="text-xs opacity-80">{dateLabel}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No weekly data yet. Add some daily log entries first.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

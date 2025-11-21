@@ -163,8 +163,21 @@ export function LogbookDaily({ userId, projectId, taskId, startDate }: LogbookDa
     try {
       setLoading(true);
       const fetchedEntries = await getEntriesByDate(userId, projectId || null, selectedDate);
+      
+      // Debug: Log all fetched entries
+      console.log(`[LogbookDaily] Fetched ${fetchedEntries.length} entries for date ${selectedDate}`);
+      
       // Filter to only show draft entries (not yet compiled into weekly log)
-      const draftEntries = fetchedEntries.filter((e: LogbookEntry) => e.category === 'draft');
+      // IMPORTANT: Only filter by category, project_id is OPTIONAL
+      const draftEntries = fetchedEntries.filter((e: LogbookEntry) => {
+        const isDraft = e.category === 'draft';
+        if (!isDraft) {
+          console.log(`[LogbookDaily] Excluding entry ${e.id}: category=${e.category}`);
+        }
+        return isDraft;
+      });
+      
+      console.log(`[LogbookDaily] Filtered to ${draftEntries.length} draft entries`);
       setEntries(draftEntries);
     } catch (error) {
       console.error('Load daily entries error:', error);

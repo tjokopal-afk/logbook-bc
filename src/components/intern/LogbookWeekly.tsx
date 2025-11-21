@@ -95,6 +95,8 @@ export function LogbookWeekly({
 
     const loadData = async () => {
       try {
+        console.log(`[LogbookWeekly] Loading Week ${weekNumber} data`);
+        console.log(`[LogbookWeekly] Date range: ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`);
         setLoading(true);
         setDailyGroups([]);
         
