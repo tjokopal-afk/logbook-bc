@@ -452,10 +452,51 @@ export default function StatusDanReview() {
                           </div>
                         </div>
                         <div className="border-t pt-4 bg-yellow-50 -mx-6 px-6 -mb-6 pb-6">
-                          <div className="flex items-center gap-2 text-yellow-700">
-                            <Clock className="w-4 h-4" />
-                            <p className="text-sm font-medium">Menunggu review dari mentor...</p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-yellow-700">
+                              <Clock className="w-4 h-4" />
+                              <p className="text-sm font-medium">Menunggu review dari mentor...</p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                const isCurrentlyExpanded = expandedWeek === report.weekNumber;
+                                if (isCurrentlyExpanded) {
+                                  setExpandedWeek(null);
+                                } else {
+                                  setExpandedWeek(report.weekNumber);
+                                  await loadWeekEntries(report.weekNumber, report.projectId);
+                                }
+                              }}
+                              className="text-yellow-700 hover:text-yellow-800 hover:bg-yellow-100"
+                            >
+                              {expandedWeek === report.weekNumber ? 'Tutup Detail' : 'Lihat Detail'}
+                            </Button>
                           </div>
+
+                          {expandedWeek === report.weekNumber && (
+                            <div className="mt-4 space-y-3 bg-white rounded-lg p-4 border border-yellow-200">
+                              {loadingEntries[report.weekNumber] ? (
+                                <div className="animate-pulse space-y-2">
+                                  <div className="h-4 bg-gray-100 rounded w-3/4"></div>
+                                  <div className="h-4 bg-gray-100 rounded w-1/2"></div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {(weekEntries[report.weekNumber] || []).map((entry: any) => (
+                                    <div key={entry.id} className="border-b last:border-0 pb-2 last:pb-0">
+                                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                        <span>{entry.entry_date}</span>
+                                        <span>{toHHMM(entry.start_time)} - {toHHMM(entry.end_time)}</span>
+                                      </div>
+                                      <p className="text-sm text-gray-700">{entry.content}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -549,6 +590,48 @@ export default function StatusDanReview() {
                             </div>
                           </div>
                         )}
+
+                        <div className="mt-4 pt-4 border-t flex flex-col">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const isCurrentlyExpanded = expandedWeek === report.weekNumber;
+                              if (isCurrentlyExpanded) {
+                                setExpandedWeek(null);
+                              } else {
+                                setExpandedWeek(report.weekNumber);
+                                await loadWeekEntries(report.weekNumber, report.projectId);
+                              }
+                            }}
+                            className="self-end"
+                          >
+                            {expandedWeek === report.weekNumber ? 'Tutup Detail' : 'Lihat Detail Logbook'}
+                          </Button>
+
+                          {expandedWeek === report.weekNumber && (
+                            <div className="mt-4 space-y-3">
+                              {loadingEntries[report.weekNumber] ? (
+                                <div className="animate-pulse space-y-2">
+                                  <div className="h-4 bg-gray-100 rounded w-3/4"></div>
+                                  <div className="h-4 bg-gray-100 rounded w-1/2"></div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {(weekEntries[report.weekNumber] || []).map((entry: any) => (
+                                    <div key={entry.id} className="border rounded p-3 bg-gray-50">
+                                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                        <span className="font-medium text-gray-700">{entry.entry_date}</span>
+                                        <span>{toHHMM(entry.start_time)} - {toHHMM(entry.end_time)}</span>
+                                      </div>
+                                      <p className="text-sm text-gray-700">{entry.content}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   );

@@ -18,7 +18,7 @@ export default function MentorDashboard() {
   const [projectStats, setProjectStats] = useState({ total: 0, active: 0, completed: 0, upcoming: 0 }); // PIC projects
   const [globalProjectStats, setGlobalProjectStats] = useState({ total: 0, active: 0, completed: 0 }); // all projects
   const [internsCount, setInternsCount] = useState(0);
-  const [reviewedWeeks, setReviewedWeeks] = useState(0);
+  const [approvedWeeks, setApprovedWeeks] = useState(0);
   const [rejectedWeeks, setRejectedWeeks] = useState(0);
   const [pendingWeeks, setPendingWeeks] = useState(0);
 
@@ -77,11 +77,11 @@ export default function MentorDashboard() {
           });
           setPendingWeeks(submittedSet.size);
           setRejectedWeeks(rejectedSet.size);
-          setReviewedWeeks(approvedSet.size + rejectedSet.size);
+          setApprovedWeeks(approvedSet.size);
         } else {
           setPendingWeeks(0);
           setRejectedWeeks(0);
-          setReviewedWeeks(0);
+          setApprovedWeeks(0);
         }
       } catch (e) {
         console.error('Load mentor dashboard data error:', e);
@@ -150,11 +150,11 @@ export default function MentorDashboard() {
         </Card>
         <Card onClick={() => navigate('/mentor/review-logbook')} className="cursor-pointer hover:shadow">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2"><FileCheck className="w-5 h-5" />Reviewed</CardTitle>
-            <CardDescription>Logbook yang sudah direview</CardDescription>
+            <CardTitle className="text-lg flex items-center gap-2"><CheckCircle2 className="w-5 h-5" />Approved</CardTitle>
+            <CardDescription>Logbook yang disetujui</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold text-green-600">{reviewedWeeks}</div>
+            <div className="text-4xl font-bold text-green-600">{approvedWeeks}</div>
           </CardContent>
         </Card>
         <Card onClick={() => navigate('/mentor/review-logbook')} className="cursor-pointer hover:shadow">

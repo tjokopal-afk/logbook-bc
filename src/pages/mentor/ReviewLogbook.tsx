@@ -216,7 +216,7 @@ export default function ReviewLogbook() {
     } else if (category.includes('rejected')) {
       return <Badge className="bg-red-600"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
     } else if (category.includes('submitted') && !category.includes('approved') && !category.includes('rejected')) {
-      return <Badge className="bg-blue-600"><Clock className="w-3 h-3 mr-1" />Pending Review</Badge>;
+      return <Badge className="bg-yellow-600"><Clock className="w-3 h-3 mr-1" />Pending Review</Badge>;
     }
     return <Badge variant="outline">Draft</Badge>;
   };
